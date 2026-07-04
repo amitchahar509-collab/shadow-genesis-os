@@ -1,0 +1,144 @@
+// SHADOW GENESIS OS — Autonomous AI Company Operating System schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ TASK GRAPH ============
+model GenesisTask {
+  id               String    @id @default(cuid())
+  taskId           String    @unique // T-001
+  title            String
+  description      String
+  ownerAgent       String    // CEO, RESEARCH, PRODUCT, ENGINEERING, AI_SYSTEMS, DESIGN, GROWTH, QUALITY
+  department       String
+  priority         String    @default("MEDIUM") // CRITICAL | HIGH | MEDIUM | LOW
+  status           String    @default("PENDING") // PENDING | IN_PROGRESS | BLOCKED | REVIEW | DONE | FAILED
+  progress         Int       @default(0) // 0-100
+  dependencies     String    @default("[]") // JSON array of taskId
+  expectedArtifact String
+  validation       String
+  estimatedHours   Int       @default(0)
+  actualHours      Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  startedAt        DateTime?
+  completedAt      DateTime?
+}
+
+// ============ MEMORY ARCHITECTURE ============
+model MemoryEntry {
+  id         String   @id @default(cuid())
+  type       String   // EPISODIC | SEMANTIC | PROCEDURAL
+  title      String
+  content    String
+  tags       String   @default("[]") // JSON array
+  importance Int      @default(5) // 1-10
+  source     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// ============ DEPARTMENTS ============
+model Department {
+  id             String   @id @default(cuid())
+  key            String   @unique // ceo | research | product | engineering | ai_systems | design | growth | quality
+  name           String
+  mission        String
+  status         String   @default("ACTIVE") // ACTIVE | IDLE | BLOCKED | OFFLINE
+  health         Int      @default(100) // 0-100
+  activeAgents   Int      @default(0)
+  completedTasks Int      @default(0)
+  pendingTasks   Int      @default(0)
+  load           Int      @default(0) // 0-100
+  metrics        String   @default("{}") // JSON
+  updatedAt      DateTime @updatedAt
+}
+
+// ============ CEO DECISIONS ============
+model CeoDecision {
+  id        String   @id @default(cuid())
+  title     String
+  rationale String
+  decision  String
+  impact    String   @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status    String   @default("EXECUTED") // PROPOSED | APPROVED | EXECUTED | REVERSED
+  createdAt DateTime @default(now())
+}
+
+// ============ RESEARCH DEPARTMENT ============
+model ResearchReport {
+  id         String   @id @default(cuid())
+  topic      String
+  category   String   // MARKET | COMPETITOR | USER | TECHNOLOGY | RISK | OPPORTUNITY
+  summary    String
+  findings   String   @default("[]") // JSON array
+  evidence   String   @default("[]") // JSON array
+  confidence Int      @default(70) // 0-100
+  status     String   @default("PUBLISHED")
+  createdAt  DateTime @default(now())
+}
+
+// ============ ACTIVITY FEED ============
+model ActivityLog {
+  id        String   @id @default(cuid())
+  agent     String
+  action    String
+  detail    String
+  level     String   @default("INFO") // INFO | SUCCESS | WARNING | ERROR | CRITICAL
+  category  String   @default("SYSTEM") // TASK | BUILD | TEST | DEPLOY | SECURITY | MEMORY | DECISION | RESEARCH
+  taskId    String?
+  createdAt DateTime @default(now())
+}
+
+// ============ SYSTEM METRICS ============
+model SystemMetric {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  value     Float
+  unit      String
+  category  String   // PERFORMANCE | COST | QUALITY | THROUGHPUT | RELIABILITY
+  target    Float?
+  updatedAt DateTime @updatedAt
+}
+
+// ============ GIT / BUILD CHECKPOINTS ============
+model BuildCheckpoint {
+  id          String   @id @default(cuid())
+  version     String   @unique
+  type        String   // COMMIT | RELEASE | ROLLBACK
+  summary     String
+  changesCount Int     @default(0)
+  testsPassed Int      @default(0)
+  testsFailed Int      @default(0)
+  status      String   @default("PASSED") // PASSED | FAILED | ROLLBACK
+  createdAt   DateTime @default(now())
+}
+
+// ============ OPERATIONAL LOOPS ============
+model OperationalLoop {
+  id          String    @id @default(cuid())
+  key         String    @unique // self_correction | sandbox | git | security | model_orchestration | deployment | feedback | learning
+  name        String
+  description String
+  status      String    @default("RUNNING") // RUNNING | PAUSED | IDLE | ERROR
+  cycleCount  Int       @default(0)
+  lastRunAt   DateTime?
+  interval    String
+  healthScore Int       @default(100)
+  detail      String?
+  updatedAt   DateTime  @updatedAt
+}
+
+// ============ GENESIS STATE (K/V) ============
+model GenesisState {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
