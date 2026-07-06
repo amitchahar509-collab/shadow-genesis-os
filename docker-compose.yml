@@ -1,0 +1,30 @@
+# Shadow Genesis OS — Docker Compose
+# Run: docker-compose up
+
+services:
+  genesis:
+    build: .
+    ports:
+      - "3000:3000"
+      - "3030:3030"
+    volumes:
+      - genesis-data:/app/data
+      - genesis-workspace:/app/.genesis-workspace
+      - genesis-sandboxes:/app/.genesis-sandboxes
+    environment:
+      - DATABASE_URL=file:/app/data/genesis.db
+      - ZAI_API_KEY=${ZAI_API_KEY:-}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-dev-secret-change-me}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  genesis-data:
+  genesis-workspace:
+  genesis-sandboxes:

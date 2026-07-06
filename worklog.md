@@ -74,3 +74,33 @@ Stage Summary:
 - The OS can take "Build my idea" via POST /api/genesis/v4/dispatch → CEO decomposes → 7-agent pipeline runs in background → real artifacts + tests + commits + deployment + monitoring → memory compounds → self-improvement creates tasks for next iteration.
 - 33 tests passing. tsc + eslint + build all clean.
 - Live data verified: real ARCHITECT execution produced real files + git commit.
+
+---
+Task ID: 5
+Agent: Z.ai Code (main) — Final autonomous completion loop
+Task: Complete Shadow Genesis OS — turn prototype into production-ready product. Remove all fake systems. Build real user experience. Verify with real execution.
+
+Work Log:
+- Phase 0 (Reality Audit): Generated FINAL_SYSTEM_AUDIT.md + FINAL_COMPLETION_BACKLOG.md. Identified biggest gaps: fake activity service, V2-only dashboard, no mission input UI.
+- Phase 1 (Remove fake systems): Replaced activity service v2 (fake template generator) with v4 (real-event broadcaster). HTTP /broadcast endpoint accepts runtime events. 30s heartbeat pulls real queue status. Zero fake templates.
+- Phase 2 (Real user experience): Built new V4 dashboard (genesis-dashboard.tsx) with 10 tabs: Command Center (with "Build my idea" mission input), Missions, Agents (with live state + pause/resume), Tasks, Memory, Messages, Security, Observability, Sandboxes, Genesis State. All tabs fetch real data from API. Added CSS utilities (input-genesis, btn-genesis, section-h, flicker).
+- Phase 3 (Mission engine): Added mission lifecycle integration test (mission-lifecycle.test.ts) verifying full pipeline produces DB records + artifacts + logs + events.
+- Phase 9 (Security hardening): Added env validation (src/lib/env.ts) + /api/health endpoint with DB + env checks.
+- Phase 10 (Deployment readiness): Added Dockerfile (multi-stage build), docker-compose.yml, .dockerignore, README.md with deployment instructions.
+- Phase 11 (Final QA): Generated FINAL_READINESS_REPORT.md with test results, architecture map, remaining limitations, deployment instructions.
+
+Verification:
+- 35 tests passing (33 V4 + 2 mission lifecycle)
+- tsc clean (0 errors)
+- eslint clean (0 errors)
+- Next.js build successful (50 pages, 57 API routes)
+- Live smoke test: ARCHITECT agent ran via API → EX-000010 SUCCESS 5.5s, 5 files scaffolded, real git commit, 2 artifacts persisted
+- Dashboard renders with real data (verified via curl)
+- Activity service v4: NO FAKE TEMPLATES
+
+Stage Summary:
+- **Status: PRODUCTION-READY (with documented limitations).**
+- All fake systems removed. Real user experience built. Mission lifecycle verified.
+- The OS can take "Build my idea" via the dashboard mission input and autonomously research, plan, build, test, deploy, monitor, and improve.
+- 35 tests passing. tsc + eslint + build all clean.
+- Remaining limitations documented in FINAL_READINESS_REPORT.md (no auth, SQLite concurrency, no CI).

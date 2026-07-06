@@ -1,25 +1,27 @@
 /**
- * SHADOW GENESIS OS — Activity Stream Mini-Service
+ * SHADOW GENESIS OS — Activity Stream Mini-Service (V4 — REAL events only)
  *
- * Socket.io server on port 3030 that simulates the live telemetry of an
- * autonomous AI company: agents across 8 departments continuously emit
- * realistic activity events (builds, scans, decisions, routing, fixes…).
+ * Socket.io server on port 3030 that bridges agent-runtime events to the
+ * dashboard in real time. NO FAKE TEMPLATES.
  *
- * - On connect: emit a `snapshot` of recent in-memory events.
- * - Every 2.5–5s (jittered): generate a new event, broadcast `activity`,
- *   keep last 80 in memory, and POST it to the Next.js API
- *   (/api/genesis/activity) so DB-backed polling clients stay in sync.
- *
- * Frontend connects via io("/?XTransformPort=3030") (path "/" so Caddy
- * forwards correctly).
+ * v4 changes:
+ *   - The fake template generator is REMOVED. Zero simulated events.
+ *   - HTTP endpoint `POST /broadcast` accepts real ActivityEvents from
+ *     the agent runtime (src/lib/genesis/agent-runtime/event-bus.ts).
+ *   - Socket.io protocol unchanged (path "/", `activity` / `snapshot` /
+ *     `request-snapshot` events) so dashboard client works unmodified.
+ *   - 30s heartbeat pulls REAL queue status from
+ *     /api/genesis/orchestrator/status (no fake data).
+ *   - On startup, emits a "service started" event so clients know it's live.
  */
 
-import { createServer } from "http";
+import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { Server } from "socket.io";
 
 const PORT = 3030;
 const NEXT_API = "http://localhost:3000/api/genesis/activity";
-const MAX_IN_MEMORY = 80;
+const ORCHESTRATOR_STATUS = "http://localhost:3000/api/genesis/orchestrator/status";
+const MAX_IN_MEMORY = 200;
 
 type Level = "INFO" | "SUCCESS" | "WARNING" | "ERROR" | "CRITICAL";
 
@@ -31,70 +33,9 @@ interface ActivityLog {
   level: Level;
   category: string;
   taskId: string | null;
+  executionId?: string | null;
   createdAt: string;
 }
-
-// ---------- Event generator templates ----------
-interface Template {
-  agent: string;
-  action: string;
-  detail: string;
-  level: Level;
-  category: string;
-  taskId?: string;
-}
-
-const TEMPLATES: Template[] = [
-  // Engineering
-  { agent: "ENGINEERING", action: "BUILD", detail: "Compiled dashboard route — 0 errors, 3 warnings", level: "SUCCESS", category: "BUILD", taskId: "T-007" },
-  { agent: "ENGINEERING", action: "TEST", detail: "Ran 142 tests · 141 passed · 1 flaky (timing)", level: "WARNING", category: "TEST", taskId: "T-008" },
-  { agent: "ENGINEERING", action: "COMMIT", detail: "Checkpoint created · 8 changes · message: 'memory bank CRUD'", level: "SUCCESS", category: "BUILD", taskId: "T-020" },
-  { agent: "ENGINEERING", action: "FIX", detail: "Patched null deref in task resolver · regression test added", level: "SUCCESS", category: "BUILD", taskId: "T-008" },
-  { agent: "ENGINEERING", action: "REFACTOR", detail: "Extracted shared panel primitive · -142 LOC", level: "INFO", category: "BUILD", taskId: "T-007" },
-  // AI Systems
-  { agent: "AI_SYSTEMS", action: "ROUTE", detail: "Routed 1,204 tasks → cheap tier · est. savings $3.12", level: "INFO", category: "TASK", taskId: "T-010" },
-  { agent: "AI_SYSTEMS", action: "ROUTE", detail: "Escalated 3 reasoning tasks → advanced tier", level: "INFO", category: "TASK", taskId: "T-010" },
-  { agent: "AI_SYSTEMS", action: "MEMORY", detail: "Consolidated 4 episodic → 2 procedural SOPs", level: "SUCCESS", category: "MEMORY", taskId: "T-011" },
-  { agent: "AI_SYSTEMS", action: "TOOLS", detail: "Registered new tool: 'prisma-query' · permission gated", level: "INFO", category: "TASK", taskId: "T-022" },
-  { agent: "AI_SYSTEMS", action: "CACHE", detail: "Cache hit ratio 0.62 · 18k tokens saved", level: "SUCCESS", category: "TASK", taskId: "T-010" },
-  // CEO
-  { agent: "CEO", action: "DECISION", detail: "Re-prioritized: auth MVP before billing MVP", level: "INFO", category: "DECISION", taskId: "T-017" },
-  { agent: "CEO", action: "ALLOCATE", detail: "Rebalanced capacity · growth→engineering (+1 agent)", level: "INFO", category: "DECISION", taskId: "T-002" },
-  { agent: "CEO", action: "REVIEW", detail: "Reviewed cycle 7 metrics · on-track vs north-star", level: "SUCCESS", category: "DECISION", taskId: "T-001" },
-  // Research
-  { agent: "RESEARCH", action: "SCAN", detail: "Scanned 47 sources for 'agent orchestration' queries", level: "INFO", category: "RESEARCH", taskId: "T-018" },
-  { agent: "RESEARCH", action: "PUBLISH", detail: "Published competitor teardown · confidence 0.68", level: "INFO", category: "RESEARCH", taskId: "T-018" },
-  { agent: "RESEARCH", action: "INTERVIEW", detail: "Coded interview #12 · theme: onboarding friction", level: "SUCCESS", category: "RESEARCH", taskId: "T-004" },
-  // Product
-  { agent: "PRODUCT", action: "BLUEPRINT", detail: "Updated API contract · added /memory endpoints", level: "INFO", category: "TASK", taskId: "T-006" },
-  { agent: "PRODUCT", action: "SPEC", detail: "Drafted RBAC schema v0 · awaiting security review", level: "WARNING", category: "TASK", taskId: "T-019" },
-  // Design
-  { agent: "DESIGN", action: "TOKENS", detail: "Aligned color tokens across 47 components", level: "SUCCESS", category: "TASK", taskId: "T-012" },
-  { agent: "DESIGN", action: "PROTOTYPE", detail: "Prototyping animated metric viz · 58fps", level: "INFO", category: "TASK", taskId: "T-023" },
-  { agent: "DESIGN", action: "REVIEW", detail: "UX review passed · HUD layout sticky footer OK", level: "SUCCESS", category: "TASK", taskId: "T-013" },
-  // Growth
-  { agent: "GROWTH", action: "EXPERIMENT", detail: "Experiment G-5 live · variant B conversion +0.4%", level: "INFO", category: "TASK", taskId: "T-024" },
-  { agent: "GROWTH", action: "FUNNEL", detail: "Funnel events flowing · 1,284 organic users this week", level: "SUCCESS", category: "TASK", taskId: "T-024" },
-  // Quality
-  { agent: "QUALITY", action: "SCAN", detail: "Security scan · 0 criticals · 2 mediums queued", level: "WARNING", category: "SECURITY", taskId: "T-015" },
-  { agent: "QUALITY", action: "TEST", detail: "Agent-browser smoke · render OK · 1 interaction flaky", level: "WARNING", category: "TEST", taskId: "T-016" },
-  { agent: "QUALITY", action: "AUDIT", detail: "Audited /api/genesis/tasks · input validation OK", level: "SUCCESS", category: "SECURITY", taskId: "T-015" },
-  { agent: "QUALITY", action: "REPORT", detail: "QA report v0.7.3 · golden path 5/6 pass", level: "INFO", category: "TEST", taskId: "T-016" },
-  // Self-correction
-  { agent: "SELF_CORRECTION", action: "FIX", detail: "Root-caused Prisma relation mismatch · 1 cycle fix", level: "SUCCESS", category: "BUILD", taskId: "T-008" },
-  { agent: "SELF_CORRECTION", action: "ROOT_CAUSE", detail: "Identified flaky test cause: sandbox clock skew", level: "INFO", category: "BUILD" },
-  { agent: "SELF_CORRECTION", action: "RETRY", detail: "Retry attempt 2/3 · confidence threshold met", level: "WARNING", category: "BUILD" },
-  // Security
-  { agent: "SECURITY", action: "SCAN", detail: "Secrets scan clean · 0 leaked keys detected", level: "SUCCESS", category: "SECURITY" },
-  { agent: "SECURITY", action: "ALERT", detail: "Dep CVE (medium) in transitive dep · upgrade queued", level: "WARNING", category: "SECURITY" },
-  { agent: "SECURITY", action: "AUDIT", detail: "Authorization audit · all /api routes gated", level: "SUCCESS", category: "SECURITY" },
-  // Feedback
-  { agent: "FEEDBACK", action: "INGEST", detail: "Ingested 23 feedback events · channel 3 degraded", level: "WARNING", category: "TASK" },
-  { agent: "FEEDBACK", action: "ANALYZE", detail: "Feedback → theme mapping · 4 new insights", level: "INFO", category: "TASK" },
-  // Deployment
-  { agent: "ENGINEERING", action: "DEPLOY", detail: "Deployment loop paused · awaiting QA sign-off", level: "WARNING", category: "DEPLOY" },
-  { agent: "ENGINEERING", action: "BUILD", detail: "Build green · 142/142 tests · ready for checkpoint", level: "SUCCESS", category: "BUILD" },
-];
 
 const recent: ActivityLog[] = [];
 let counter = 0;
@@ -104,59 +45,61 @@ function genId(): string {
   return `ws-${Date.now()}-${counter}`;
 }
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+function pushEvent(ev: ActivityLog) {
+  recent.unshift(ev);
+  if (recent.length > MAX_IN_MEMORY) recent.length = MAX_IN_MEMORY;
+  io.emit("activity", ev);
 }
 
-function makeEvent(): ActivityLog {
-  const t = pick(TEMPLATES);
-  // small jitter on detail to feel live
-  return {
-    id: genId(),
-    agent: t.agent,
-    action: t.action,
-    detail: t.detail,
-    level: t.level,
-    category: t.category,
-    taskId: t.taskId ?? null,
-    createdAt: new Date().toISOString(),
-  };
-}
-
-async function persistToDb(log: ActivityLog) {
-  try {
-    await fetch(NEXT_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agent: log.agent,
-        action: log.action,
-        detail: log.detail,
-        level: log.level,
-        category: log.category,
-        taskId: log.taskId,
-      }),
-    });
-  } catch {
-    // Next.js may be mid-restart; ignore — in-memory list still serves clients
+// ---------- HTTP broadcast endpoint (real events from runtime) ----------
+const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  if (req.method === "POST" && req.url === "/broadcast") {
+    let body = "";
+    for await (const chunk of req) body += chunk.toString();
+    try {
+      const ev = JSON.parse(body) as Partial<ActivityLog>;
+      if (!ev.agent || !ev.action) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "agent and action required" }));
+        return;
+      }
+      const log: ActivityLog = {
+        id: genId(),
+        agent: ev.agent,
+        action: ev.action,
+        detail: ev.detail ?? "",
+        level: (ev.level as Level) ?? "INFO",
+        category: ev.category ?? "SYSTEM",
+        taskId: ev.taskId ?? null,
+        executionId: ev.executionId ?? null,
+        createdAt: new Date().toISOString(),
+      };
+      pushEvent(log);
+      res.statusCode = 200;
+      res.end(JSON.stringify({ ok: true, id: log.id }));
+    } catch (e) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+    }
+    return;
   }
-}
+  if (req.method === "GET" && req.url === "/health") {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: true, recent: recent.length, uptime: process.uptime(), fakeEvents: 0 }));
+    return;
+  }
+  if (req.method === "GET" && req.url === "/snapshot") {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(recent.slice(0, 30)));
+    return;
+  }
+  res.statusCode = 404;
+  res.end("not found");
+});
 
-function scheduleNext() {
-  const delay = 2500 + Math.random() * 2500; // 2.5s–5s
-  setTimeout(async () => {
-    const ev = makeEvent();
-    recent.unshift(ev);
-    if (recent.length > MAX_IN_MEMORY) recent.length = MAX_IN_MEMORY;
-    io.emit("activity", ev);
-    // fire-and-forget DB persist
-    persistToDb(ev);
-    scheduleNext();
-  }, delay);
-}
-
-// ---------- Server ----------
-const httpServer = createServer();
+// ---------- Socket.io layer ----------
 const io = new Server(httpServer, {
   path: "/",
   cors: { origin: "*", methods: ["GET", "POST"] },
@@ -165,28 +108,65 @@ const io = new Server(httpServer, {
 });
 
 io.on("connection", (socket) => {
-  console.log(`[activity-service] client connected: ${socket.id}`);
+  console.log(`[activity-service v4] client connected: ${socket.id}`);
   socket.emit("snapshot", recent.slice(0, 30));
   socket.on("request-snapshot", () => {
     socket.emit("snapshot", recent.slice(0, 30));
   });
   socket.on("disconnect", () => {
-    console.log(`[activity-service] client disconnected: ${socket.id}`);
+    console.log(`[activity-service v4] client disconnected: ${socket.id}`);
   });
 });
 
+// ---------- Heartbeat (real status, every 30s) ----------
+async function heartbeat() {
+  try {
+    const r = await fetch(ORCHESTRATOR_STATUS, { signal: AbortSignal.timeout(3_000) });
+    if (!r.ok) return;
+    const data = (await r.json()) as { status: { queued: number; inProgress: number; doneToday: number; failedToday: number; agentLocks: string[]; activeMissions: number; } };
+    const s = data.status;
+    const log: ActivityLog = {
+      id: genId(),
+      agent: "ORCHESTRATOR",
+      action: "STATUS",
+      detail: `queue: ${s.queued} pending · ${s.inProgress} in-progress · ${s.activeMissions} active missions · today ${s.doneToday} done / ${s.failedToday} failed`,
+      level: "INFO",
+      category: "SYSTEM",
+      taskId: null,
+      createdAt: new Date().toISOString(),
+    };
+    pushEvent(log);
+  } catch {
+    // Next.js down — skip heartbeat
+  }
+}
+
 httpServer.listen(PORT, () => {
-  console.log(`[activity-service] SHADOW GENESIS activity stream live on :${PORT}`);
-  scheduleNext();
+  console.log(`[activity-service v4] SHADOW GENESIS REAL-event broadcaster live on :${PORT}`);
+  console.log(`[activity-service v4] POST /broadcast ← agent runtime events`);
+  console.log(`[activity-service v4] socket.io path "/" for dashboard clients`);
+  console.log(`[activity-service v4] NO FAKE TEMPLATES — real events only`);
+  // Emit startup event
+  pushEvent({
+    id: genId(),
+    agent: "SYSTEM",
+    action: "STARTED",
+    detail: "Activity service v4 started — real events only, no fake templates",
+    level: "SUCCESS",
+    category: "SYSTEM",
+    taskId: null,
+    createdAt: new Date().toISOString(),
+  });
+  setInterval(heartbeat, 30_000);
 });
 
 process.on("SIGTERM", () => {
-  console.log("[activity-service] SIGTERM, shutting down…");
+  console.log("[activity-service v4] SIGTERM, shutting down…");
   io.close();
   httpServer.close(() => process.exit(0));
 });
 process.on("SIGINT", () => {
-  console.log("[activity-service] SIGINT, shutting down…");
+  console.log("[activity-service v4] SIGINT, shutting down…");
   io.close();
   httpServer.close(() => process.exit(0));
 });

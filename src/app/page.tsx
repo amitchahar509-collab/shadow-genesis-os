@@ -1,5 +1,5 @@
-import { GenesisShell } from "@/components/genesis/genesis-shell";
+import { GenesisDashboard } from "@/components/genesis/genesis-dashboard";
 
 export default function Page() {
-  return <GenesisShell />;
+  return <GenesisDashboard />;
 }
