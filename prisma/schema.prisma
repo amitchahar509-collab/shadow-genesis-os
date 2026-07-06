@@ -142,3 +142,419 @@ model GenesisState {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// ============ PROJECT / COMPANY (V4 Phase 7) ============
+model Project {
+  id          String   @id @default(cuid())
+  key         String   @unique // slug
+  name        String
+  mission     String
+  type        String   @default("PRODUCT") // PRODUCT | SAAS | API | INTERNAL | EXPERIMENT
+  status      String   @default("ACTIVE") // ACTIVE | PAUSED | ARCHIVED | KILLED
+  repoPath    String?
+  businessScore Float  @default(0) // 0-100 from validation engine
+  priority    String   @default("MEDIUM") // CRITICAL | HIGH | MEDIUM | LOW
+  metadata    String   @default("{}") // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============ AGENT EXECUTION (V3) ============
+model AgentExecution {
+  id                String   @id @default(cuid())
+  executionId       String   @unique // EX-000001
+  agent             String
+  taskId            String?
+  projectId         String?
+  goal              String
+  status            String   @default("PENDING") // PENDING | RUNNING | SUCCESS | FAILED | CANCELLED | RETRYING
+  startedAt         DateTime @default(now())
+  completedAt       DateTime?
+  result            String   @default("{}")
+  error             String?
+  toolCalls         Int      @default(0)
+  artifactsCreated  Int      @default(0)
+  retryCount        Int      @default(0)
+  durationMs        Int      @default(0)
+  tokensUsed        Int      @default(0)
+  parentExecutionId String?
+  createdAt         DateTime @default(now())
+}
+
+// ============ TOOL CALLS ============
+model ToolCall {
+  id           String   @id @default(cuid())
+  executionId  String
+  tool         String
+  operation    String
+  input        String   @default("{}")
+  output       String   @default("{}")
+  status       String   @default("SUCCESS")
+  durationMs   Int      @default(0)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+}
+
+// ============ ARTIFACTS ============
+model Artifact {
+  id           String   @id @default(cuid())
+  executionId  String?
+  taskId       String?
+  projectId    String?
+  type         String // FILE | DIRECTORY | REPORT | REPOSITORY | TEST_SUITE | DEPLOYMENT | DESIGN_DOC
+  path         String
+  description  String
+  size         Int      @default(0)
+  checksum     String?
+  metadata     String   @default("{}")
+  createdAt    DateTime @default(now())
+}
+
+// ============ TEST RUNS ============
+model TestRun {
+  id           String   @id @default(cuid())
+  executionId  String?
+  taskId       String?
+  suite        String
+  passed       Int      @default(0)
+  failed       Int      @default(0)
+  skipped      Int      @default(0)
+  durationMs   Int      @default(0)
+  status       String   @default("PASSED")
+  output       String   @default("")
+  createdAt    DateTime @default(now())
+}
+
+// ============ DEPLOYMENT RECORDS ============
+model DeploymentRecord {
+  id            String   @id @default(cuid())
+  executionId   String?
+  taskId        String?
+  projectId     String?
+  target        String // local | vercel | netlify | custom
+  url           String?
+  buildCmd      String
+  envValidation String   @default("{}")
+  status        String   @default("PENDING") // PENDING | BUILDING | VALIDATING | DEPLOYED | FAILED | UNHEALTHY
+  health        String   @default("UNKNOWN") // UNKNOWN | HEALTHY | UNHEALTHY | NOT_RUNNING
+  log           String   @default("")
+  createdAt     DateTime @default(now())
+}
+
+// ============ AGENT COLLABORATION (V3 Phase 1) ============
+model AgentMessage {
+  id          String   @id @default(cuid())
+  messageId   String   @unique // MSG-000001
+  fromAgent   String
+  toAgent     String
+  type        String // DIRECTIVE | QUESTION | FINDINGS | APPROVE | REJECT | BLOCK | ALLOW | REQUEST_HELP | HELP_PROVIDED | DELEGATE
+  payload     String   @default("{}")
+  status      String   @default("SENT") // SENT | DELIVERED | READ | ACTED
+  createdAt   DateTime @default(now())
+}
+
+model AgentState {
+  id                  String   @id @default(cuid())
+  agent               String   @unique
+  state               String   @default("IDLE") // IDLE | THINKING | EXECUTING | REVIEWING | BLOCKED | DONE | PAUSED | OFFLINE
+  currentExecutionId  String?
+  currentTaskId       String?
+  paused              Boolean  @default(false)
+  updatedAt           DateTime @updatedAt
+}
+
+model AgentDecision {
+  id          String   @id @default(cuid())
+  decisionId  String   @unique // DEC-000001
+  agent       String
+  targetAgent String?
+  taskId      String?
+  executionId String?
+  type        String // APPROVE | REJECT | REQUEST_REVISION | BLOCK | ALLOW
+  rationale   String
+  payload     String   @default("{}")
+  status      String   @default("ACTIVE") // ACTIVE | OVERRIDDEN | SUPERSEDED
+  requiresHumanApproval Boolean @default(false)
+  humanStatus String? // PENDING | APPROVED | REJECTED
+  createdAt   DateTime @default(now())
+  decidedAt   DateTime?
+}
+
+// ============ SELF-IMPROVEMENT (V3 Phase 6) ============
+model ExecutionAnalysis {
+  id              String   @id @default(cuid())
+  executionId     String   @unique
+  agent           String
+  whatWorked      String   @default("[]")
+  whatFailed      String   @default("[]")
+  whatWastedTime  String   @default("[]")
+  recommendations String   @default("[]")
+  improvementTaskIds String @default("[]")
+  failureCategory String? // TOOL_ERROR | CODE_ERROR | MISSING_DEP | TIMEOUT | LLM_FAILURE | UNKNOWN
+  createdAt       DateTime @default(now())
+}
+
+model FailureAnalysis {
+  id            String   @id @default(cuid())
+  executionId   String
+  agent         String
+  category      String
+  rootCause     String
+  pattern       String   @default("{}")
+  recommendation String
+  recurring     Boolean  @default(false)
+  occurrences   Int      @default(1)
+  createdAt     DateTime @default(now())
+}
+
+model PromptVersion {
+  id           String   @id @default(cuid())
+  agent        String
+  version      Int
+  systemPrompt String
+  notes        String?
+  active       Boolean  @default(false)
+  successCount Int      @default(0)
+  failCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+}
+
+// ============ OBSERVABILITY (V3 Phase 8) ============
+model AgentMetric {
+  id            String   @id @default(cuid())
+  agent         String
+  windowStart   DateTime
+  windowEnd     DateTime
+  successRate   Float
+  avgDurationMs Int
+  p95DurationMs Int
+  toolCallCount Int
+  artifactCount Int
+  errorCount    Int
+  createdAt     DateTime @default(now())
+}
+
+// ============ SECURITY (V3 Phase 9) ============
+model SecurityFinding {
+  id          String   @id @default(cuid())
+  agent       String
+  scope       String // ARTIFACT | DEPENDENCY | CONFIG | SOURCE
+  scopeId     String?
+  rule        String
+  severity    String // CRITICAL | HIGH | MEDIUM | LOW
+  message     String
+  file        String?
+  line        Int?
+  status      String   @default("OPEN") // OPEN | ACKNOWLEDGED | FIXED | FALSE_POSITIVE
+  blocksRelease Boolean @default(false)
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+}
+
+// ============ SANDBOX (V3 Phase 3) ============
+model Sandbox {
+  id          String   @id @default(cuid())
+  sandboxId   String   @unique // SBX-000001
+  executionId String?
+  projectId   String?
+  path        String
+  status      String   @default("ACTIVE") // ACTIVE | SNAPSHOTTED | CLEANED
+  healthCheck String   @default("UNKNOWN") // UNKNOWN | HEALTHY | UNHEALTHY | NOT_RUNNING
+  port        Int?
+  pid         Int?
+  logPath     String?
+  ttlSeconds  Int      @default(86400)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============ AGENT TEMPLATES (V3 Phase 10) ============
+model AgentTemplate {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  description  String
+  systemPrompt String
+  toolAllowlist String  @default("[]")
+  defaultContext String @default("{}")
+  isBuiltin    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+// ============ V4 — OPPORTUNITY (Phase 2) ============
+model Opportunity {
+  id          String   @id @default(cuid())
+  opportunityId String @unique // OPP-000001
+  title       String
+  problem     String
+  market      String
+  targetUsers String
+  competition String   @default("{}")
+  difficulty  Float    @default(5) // 1-10
+  potentialValue Float @default(5) // 1-10
+  evidence    String   @default("[]") // JSON of {url, snippet}[]
+  confidence  Float    @default(50) // 0-100
+  businessScore Float  @default(0) // 0-100 from validation
+  status      String   @default("DISCOVERED") // DISCOVERED | VALIDATING | VALIDATED | KILLED | BUILDING | LAUNCHED
+  source      String? // which scan found it
+  tags        String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============ V4 — BUSINESS VALIDATION (Phase 3) ============
+model BusinessValidation {
+  id            String   @id @default(cuid())
+  opportunityId String   @unique
+  demandScore   Float    @default(0) // 0-100
+  competitionScore Float @default(0)
+  timingScore   Float    @default(0)
+  feasibilityScore Float @default(0)
+  monetizationScore Float @default(0)
+  overallScore  Float    @default(0) // weighted
+  recommendation String  @default("REVIEW") // BUILD | REVIEW | KILL
+  evidence      String   @default("{}")
+  risks         String   @default("[]")
+  channels      String   @default("[]")
+  validatedAt   DateTime @default(now())
+}
+
+// ============ V4 — REVENUE (Phase 6) ============
+model RevenueModel {
+  id          String   @id @default(cuid())
+  projectId   String?
+  model       String   // SUBSCRIPTION | ONE_TIME | FREEMIUM | USAGE | ADS | MARKETPLACE | SERVICES
+  pricing     String   @default("{}") // JSON of tiers
+  forecast    String   @default("{}") // JSON of monthly projections
+  costAnalysis String  @default("{}")
+  status      String   @default("PROPOSED") // PROPOSED | ACTIVE | PAUSED | KILLED
+  experiments String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RevenueEvent {
+  id          String   @id @default(cuid())
+  projectId   String?
+  type        String   // CHARGE | REFUND | SUBSCRIPTION | UPGRADE | CHURN
+  amount      Float
+  currency    String   @default("USD")
+  customerId  String?
+  metadata    String   @default("{}")
+  createdAt   DateTime @default(now())
+}
+
+// ============ V4 — GROWTH (Phase 5) ============
+model GrowthExperiment {
+  id           String   @id @default(cuid())
+  projectId    String?
+  name         String
+  hypothesis   String
+  variant      String   @default("A")
+  metric       String
+  startDate    DateTime @default(now())
+  endDate      DateTime?
+  status       String   @default("RUNNING") // RUNNING | COMPLETE | KILLED
+  result       String   @default("{}")
+  createdAt    DateTime @default(now())
+}
+
+model GrowthMetric {
+  id           String   @id @default(cuid())
+  projectId    String?
+  metric       String   // traffic | activation | retention | revenue
+  value        Float
+  unit         String   @default("count")
+  period       String   @default("daily") // daily | weekly | monthly
+  recordedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+}
+
+// ============ V4 — COMPANY (Phase 7) ============
+model Company {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  mission     String
+  status      String   @default("ACTIVE") // ACTIVE | PAUSED | ARCHIVED
+  strategy    String   @default("{}") // JSON
+  metrics     String   @default("{}") // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============ V4 — KNOWLEDGE GRAPH (Phase 9) ============
+model KnowledgeNode {
+  id          String   @id @default(cuid())
+  type        String   // CONCEPT | ENTITY | EVENT | PATTERN | DECISION
+  label       String
+  description String   @default("")
+  properties  String   @default("{}")
+  createdAt   DateTime @default(now())
+}
+
+model KnowledgeEdge {
+  id          String   @id @default(cuid())
+  fromNodeId  String
+  toNodeId    String
+  relation    String // RELATES_TO | CAUSED_BY | PART_OF | DEPENDS_ON | SIMILAR_TO
+  weight      Float    @default(1)
+  evidence    String   @default("[]")
+  createdAt   DateTime @default(now())
+}
+
+// ============ V4 — REALITY FEEDBACK (Phase 13) ============
+model RealitySignal {
+  id          String   @id @default(cuid())
+  projectId   String?
+  type        String   // USER_FEEDBACK | ANALYTICS | MARKET_RESPONSE | PERFORMANCE | FAILURE
+  source      String
+  payload     String   @default("{}")
+  sentiment   Float    @default(0) // -1 to 1
+  impact      String   @default("UNKNOWN") // POSITIVE | NEUTRAL | NEGATIVE
+  actedOn     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// ============ V4 — SELF AUDIT (Phase 14) ============
+model SelfAudit {
+  id          String   @id @default(cuid())
+  question    String
+  context     String   @default("{}")
+  finding     String   @default("")
+  recommendation String @default("")
+  severity    String   @default("INFO") // INFO | WARNING | ERROR | CRITICAL
+  actedOn     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// ============ V4 — TOOL REGISTRY (Phase 10) ============
+model CustomTool {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  description  String
+  operations   String   @default("[]")
+  permissions  String   @default("{}") // per-agent allowlist
+  rating       Float    @default(0)
+  usageCount   Int      @default(0)
+  successRate  Float    @default(0)
+  isBuiltin    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ============ V4 — INTERNET OPERATOR (Phase 1) ============
+model BrowserSession {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  agent       String
+  status      String   @default("IDLE") // IDLE | NAVIGATING | EXTRACTING | INTERACTING | CLOSED
+  currentUrl  String?
+  pagesVisited Int     @default(0)
+  auditLog    String   @default("[]") // JSON of {action, url, timestamp, approved}
+  requiresApproval Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+

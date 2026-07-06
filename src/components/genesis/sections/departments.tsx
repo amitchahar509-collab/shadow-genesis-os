@@ -175,7 +175,7 @@ export function Departments({ summary }: { summary: GenesisSummary }) {
                             {k.replace(/([A-Z])/g, " $1").trim()}
                           </div>
                           <div className="font-mono text-[12px] text-emerald-400">
-                            {typeof v === "number" && k.includes("rate") || k.includes("coverage") || k.includes("accuracy") || k.includes("savings")
+                            {typeof v === "number" && (k.includes("rate") || k.includes("coverage") || k.includes("accuracy") || k.includes("savings"))
                               ? `${Math.round(v * 100)}%`
                               : typeof v === "number"
                               ? v.toLocaleString()

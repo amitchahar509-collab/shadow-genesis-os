@@ -189,7 +189,7 @@ export function TaskGraph({ summary }: { summary: GenesisSummary }) {
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                       <Chip variant={accent}>{meta?.label ?? t.department}</Chip>
                       <span className={cn("chip", PRIORITY_COLOR[t.priority])}>{t.priority}</span>
-                      <span className={cn("chip", STATUS_COLOR[t.status])} dot={t.status === "IN_PROGRESS"}>
+                      <span className={cn("chip", STATUS_COLOR[t.status], t.status === "IN_PROGRESS" && "flicker")}>
                         {t.status.replace("_", " ")}
                       </span>
                       {deps.length > 0 && (

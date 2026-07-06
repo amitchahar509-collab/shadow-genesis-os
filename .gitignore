@@ -52,3 +52,9 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Genesis runtime
+.genesis-workspace/
+.genesis-sandboxes/
+.genesis-test/
+.genesis-test-factory/
+tool-results/
