@@ -36,3 +36,41 @@ Unresolved issues or risks, next-phase priorities:
 - Model cost & token figures are simulated (no real billing integration) — matches "missing systems" list.
 - The activity mini-service must keep running (`mini-services/activity-service/`). If it stops, the feed falls back to 6s polling gracefully — no breakage, just less "live" feel.
 - **Recommended next phase:** (1) add task-status advance controls (PATCH wired, UI buttons not yet exposed); (2) add a "Create Task" modal mirroring the memory modal; (3) add a real task-dependency graph visualization (SVG/D3) instead of list; (4) hook the model-orchestration loop to a real z-ai-web-dev-sdk LLM call for one agent decision per cycle; (5) add keyboard shortcuts (1-6 to switch tabs).
+
+---
+Task ID: 4
+Agent: Z.ai Code (main) — V4 build loop
+Task: Continue Shadow Genesis OS V4 — implement all 15 phases. No fake data. Every action changes real state. Every feature ships with tests.
+
+Work Log:
+- Phase 0: Extracted V2 tar. Audited state: 12 V2 API routes, 11 Prisma models, no agent-runtime.
+- Phase 1 (Internet Operator): Built InternetAgent with audit logs + human approval gates for FORM_SUBMIT actions. BrowserSession model tracks sessions. 7 action types (NAVIGATE, EXTRACT, FORM_FILL, FORM_SUBMIT, CLICK, MONITOR, SEARCH).
+- Phase 2 (Opportunity Discovery): Built OpportunityAgent. Scans markets/trends/problems via web search, structures via LLM, persists to Opportunity table. Builds OPPORTUNITY_GRAPH artifact.
+- Phase 3 (Business Validation): Built BusinessValidationAgent. Computes BUSINESS_SCORE (demand/competition/timing/feasibility/monetization weighted). Returns BUILD/REVIEW/KILL recommendation. Kills weak ideas (status → KILLED).
+- Phase 4 (Product Studio): scaffoldNextjs() generates full Next.js+Prisma+NextAuth+bcrypt+credentials provider app with login/signup/protected dashboard/API routes/middleware/tests.
+- Phase 5 (Growth OS): GrowthAgent with LLM-assisted GTM plan (positioning + 3 channels + KPIs). GrowthExperiment + GrowthMetric models for tracking.
+- Phase 6 (Revenue Intelligence): Built RevenueAgent. Designs pricing models (SUBSCRIPTION/FREEMIUM/USAGE/etc.), 5-month forecasts, cost analysis with break-even. RevenueModel + RevenueEvent tables.
+- Phase 7 (Multi-Company): Company model + Project entity with type/priority/businessScore. Per-project isolation. 13 API routes for projects + companies.
+- Phase 8 (Agent Evolution): AgentMetric table + computeAgentMetrics job. PromptVersion with versioning + rollback + success/fail tracking. ExecutionAnalysis auto-creates improvement tasks.
+- Phase 9 (Memory Intelligence): Jaccard similarity in recall. similarMissions() for past-execution recall. failurePrevention() for tool+operation failure lookup. consolidate() for episodic→procedural SOPs. KnowledgeNode + KnowledgeEdge models.
+- Phase 10 (Tool Ecosystem): 7 built-in tools with per-agent PERMISSIONS allowlist. CustomTool model for registration. canUseTool() enforced in invokeTool().
+- Phase 11 (Production Ops): HealthMonitor with startMonitoring/stopMonitoring. diagnoseError categorizes PORT_CONFLICT/MISSING_ENV/SYNTAX_ERROR/OOM/TIMEOUT/MISSING_DEP. rollbackDeployment reverts to previous PASSED checkpoint + creates fix task for ENGINEERING.
+- Phase 12 (Strategic CEO): CeoAgent with LLM-assisted decomposition (7-task pipeline) + rule-based fallback. CeoDecision model.
+- Phase 13 (Reality Feedback): RealitySignal model (USER_FEEDBACK/ANALYTICS/MARKET_RESPONSE/PERFORMANCE/FAILURE) with sentiment + impact. /v4/reality API.
+- Phase 14 (Self-Audit): SelfAudit model + 8 audit questions. /v4/self-audit API.
+- Phase 15 (Final Autonomy): /v4/dispatch front-door ("Build my idea"). /v4/system-map shows 21 capabilities. Continuous improvement via analyzer → improvement tasks → orchestrator picks them up.
+
+Cross-cutting:
+- 26 Prisma models (V2 had 11)
+- 13 executable agents (V2 had 0)
+- 7 real tools with permission system
+- 46 API routes (V2 had 12)
+- 33 V4 tests passing
+- tsc clean, eslint clean, Next.js build successful
+- Live smoke test: ARCHITECT agent ran via POST /api/genesis/agents → EX-000007 SUCCESS, 8.1s, 5 files scaffolded, real git commit "chore: scaffold node-cli for notes-app", 2 artifacts persisted
+
+Stage Summary:
+- **Status: V4 COMPLETE.** All 15 phases implemented. Every phase has code + tests + API + DB persistence.
+- The OS can take "Build my idea" via POST /api/genesis/v4/dispatch → CEO decomposes → 7-agent pipeline runs in background → real artifacts + tests + commits + deployment + monitoring → memory compounds → self-improvement creates tasks for next iteration.
+- 33 tests passing. tsc + eslint + build all clean.
+- Live data verified: real ARCHITECT execution produced real files + git commit.
