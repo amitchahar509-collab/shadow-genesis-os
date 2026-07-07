@@ -33,8 +33,23 @@ export interface DispatchResult {
   startedAt: Date; completedAt: Date; durationMs: number;
 }
 
+/**
+ * Crashed processes leave AgentExecution rows in RUNNING forever, which skews
+ * metrics and dashboards. Mark anything running longer than maxAgeMs as FAILED.
+ */
+export async function reapOrphanedExecutions(maxAgeMs = 60 * 60 * 1000): Promise<number> {
+  const cutoff = new Date(Date.now() - maxAgeMs);
+  const { count } = await db.agentExecution.updateMany({
+    where: { status: "RUNNING", startedAt: { lt: cutoff } },
+    data: { status: "FAILED", error: "orphaned: process exited before completion", completedAt: new Date() },
+  });
+  if (count > 0) await emit(events.error("ORCHESTRATOR", `reaped ${count} orphaned RUNNING execution(s)`));
+  return count;
+}
+
 export async function dispatchGoal(goal: string, opts?: { skipCeo?: boolean; taskIds?: string[]; projectId?: string }): Promise<DispatchResult> {
   const startedAt = new Date();
+  await reapOrphanedExecutions().catch(() => {});
   await emit(events.decision("ORCHESTRATOR", `dispatchGoal: ${goal.slice(0, 120)}`));
   let taskIds: string[] = opts?.taskIds ?? [];
   let ceoExecution: AgentRunResult | undefined;
@@ -93,6 +108,26 @@ export async function runPipeline(taskIds: string[], projectId?: string) {
 
 export async function runTask(taskId: string, projectId?: string) { return runTaskWithRetry(taskId, 0, projectId); }
 
+/**
+ * Collect the outputs of a task's completed dependencies so downstream agents
+ * receive real handoff context (repoPath, stack, topic, …) instead of running
+ * against empty sandboxes and succeeding vacuously.
+ */
+export async function dependencyContext(dependencies: string): Promise<Record<string, unknown>> {
+  const deps = parseDeps(dependencies);
+  if (!deps.length) return {};
+  const ctx: Record<string, unknown> = {};
+  const execs = await db.agentExecution.findMany({ where: { taskId: { in: deps }, status: "SUCCESS" }, orderBy: { createdAt: "asc" } });
+  for (const e of execs) {
+    try {
+      const parsed = JSON.parse(e.result ?? "{}") as { output?: Record<string, unknown> };
+      if (parsed.output) Object.assign(ctx, parsed.output);
+    } catch {}
+  }
+  if (typeof ctx.stack === "string" && ctx.stackHint === undefined) ctx.stackHint = ctx.stack; // agents read stackHint
+  return ctx;
+}
+
 async function runTaskWithRetry(taskId: string, maxRetries: number, projectId?: string) {
   const task = await db.genesisTask.findUnique({ where: { taskId } });
   if (!task) return { taskId, agent: "?", status: "FAILED", summary: "not found" };
@@ -100,9 +135,10 @@ async function runTaskWithRetry(taskId: string, maxRetries: number, projectId?: 
   if (!agent) { await db.genesisTask.update({ where: { taskId }, data: { status: "FAILED" } }); return { taskId, agent: task.ownerAgent, status: "FAILED", summary: `agent not registered` }; }
   await db.genesisTask.update({ where: { taskId }, data: { status: "IN_PROGRESS", progress: 10, startedAt: new Date() } });
   await emit({ agent: task.ownerAgent, action: "TASK_START", detail: `${taskId}: ${task.title}`, level: "INFO", category: "TASK", taskId });
+  const handoff = await dependencyContext(task.dependencies);
   let lastError: string | undefined;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const result = await withAgentLock(task.ownerAgent, async () => (agent as BaseAgent).execute({ goal: `${task.title}: ${task.description}`, taskId, projectId, context: { topic: task.title } }));
+    const result = await withAgentLock(task.ownerAgent, async () => (agent as BaseAgent).execute({ goal: `${task.title}: ${task.description}`, taskId, projectId, context: { topic: task.title, ...handoff } }));
     if (result.status === "SUCCESS") {
       await db.genesisTask.update({ where: { taskId }, data: { status: "DONE", progress: 100, completedAt: new Date() } });
       await emit({ agent: task.ownerAgent, action: "TASK_DONE", detail: `${taskId} DONE: ${result.summary.slice(0, 120)}`, level: "SUCCESS", category: "TASK", taskId });

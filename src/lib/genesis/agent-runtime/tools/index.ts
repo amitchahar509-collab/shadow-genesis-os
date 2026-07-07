@@ -42,12 +42,17 @@ async function sh(cwd: string, cmd: string, timeoutMs = DEFAULT_TIMEOUT) {
     const start = Date.now();
     const shell = resolveShell();
     const child = spawn(shell.file, [...shell.args, normalizeCommand(cmd)], { cwd, env: { ...process.env, CI: "1" }, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "", stderr = "";
-    const timer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, timeoutMs);
+    let stdout = "", stderr = "", settled = false;
+    const finish = (exitCode: number) => { if (settled) return; settled = true; clearTimeout(timer); resolve({ exitCode, stdout, stderr, durationMs: Date.now() - start }); };
+    const timer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} setTimeout(() => finish(-1), 2_000); }, timeoutMs);
     child.stdout.on("data", (b: Buffer) => { stdout += b.toString("utf8").slice(0, MAX_OUT); });
     child.stderr.on("data", (b: Buffer) => { stderr += b.toString("utf8").slice(0, MAX_OUT); });
-    child.on("close", (c) => { clearTimeout(timer); resolve({ exitCode: typeof c === "number" ? c : -1, stdout, stderr, durationMs: Date.now() - start }); });
-    child.on("error", () => { clearTimeout(timer); resolve({ exitCode: -1, stdout, stderr, durationMs: Date.now() - start }); });
+    // Don't rely on "close" alone: a detached grandchild (e.g. a deployed
+    // server) can hold the stdio handles forever on Windows, so "close" never
+    // fires. "exit" + a short flush grace covers that case.
+    child.on("exit", (c) => { setTimeout(() => finish(typeof c === "number" ? c : -1), 500); });
+    child.on("close", (c) => { finish(typeof c === "number" ? c : -1); });
+    child.on("error", () => finish(-1));
   });
 }
 

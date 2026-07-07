@@ -70,12 +70,16 @@ export async function runInSandbox(sandboxId: string, command: string, opts?: { 
     const shell = resolveShell();
     const child = spawn(shell.file, [...shell.args, normalizeCommand(command)], { cwd: sb.root, env, stdio: ["ignore", "pipe", "pipe"], detached: Boolean(opts?.detach) });
     if (opts?.detach) { child.unref(); sb.processes.add(child); if (child.pid) { sb.pid = child.pid; db.sandbox.update({ where: { sandboxId }, data: { pid: child.pid } }).catch(() => {}); } }
-    let stdout = "", stderr = "";
-    const timer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, timeoutMs);
+    let stdout = "", stderr = "", settled = false;
+    const finish = (exitCode: number) => { if (settled) return; settled = true; clearTimeout(timer); if (opts?.detach) sb.processes.delete(child); resolve({ exitCode, stdout, stderr, durationMs: Date.now() - start, pid: child.pid }); };
+    const timer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} setTimeout(() => finish(-1), 2_000); }, timeoutMs);
     child.stdout?.on("data", (b: Buffer) => { const s = b.toString("utf8").slice(0, 200_000); stdout += s; fs.appendFile(stdoutPath, s).catch(() => {}); });
     child.stderr?.on("data", (b: Buffer) => { const s = b.toString("utf8").slice(0, 200_000); stderr += s; fs.appendFile(stderrPath, s).catch(() => {}); });
-    child.on("error", (err) => { clearTimeout(timer); stderr += `[spawn error: ${err.message}]`; resolve({ exitCode: -1, stdout, stderr, durationMs: Date.now() - start, pid: child.pid }); });
-    child.on("close", (code) => { clearTimeout(timer); if (opts?.detach) sb.processes.delete(child); resolve({ exitCode: typeof code === "number" ? code : -1, stdout, stderr, durationMs: Date.now() - start, pid: child.pid }); });
+    child.on("error", (err) => { stderr += `[spawn error: ${err.message}]`; finish(-1); });
+    // "exit" + flush grace instead of "close" alone — a detached grandchild
+    // can hold the stdio handles open forever on Windows.
+    child.on("exit", (code) => { setTimeout(() => finish(typeof code === "number" ? code : -1), 500); });
+    child.on("close", (code) => { finish(typeof code === "number" ? code : -1); });
   });
 }
 

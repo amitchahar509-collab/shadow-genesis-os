@@ -13,9 +13,10 @@ bun install
 # 2. Set up the database
 bun x prisma db push
 
-# 3. (Optional) Set ZAI_API_KEY for LLM-powered agents
-# Without it, agents use rule-based fallbacks (still functional, less creative)
-export ZAI_API_KEY=your-key-here
+# 3. (Optional) Set an LLM key for LLM-powered agents
+# Without one, agents use rule-based fallbacks (still functional, less creative)
+export ANTHROPIC_API_KEY=your-key-here   # preferred (Claude)
+# or: export ZAI_API_KEY=your-key-here   # fallback provider
 
 # 4. Start the dev server
 bun run dev
@@ -135,7 +136,9 @@ docker run -p 3000:3000 -p 3030:3030 shadow-genesis
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | Yes | SQLite path or Postgres URL |
-| `ZAI_API_KEY` | No | Enables LLM-powered agents |
+| `ANTHROPIC_API_KEY` | No | Preferred LLM provider (Claude) — enables LLM-powered agents |
+| `GENESIS_LLM_MODEL` | No | Anthropic model id override (default `claude-sonnet-5`) |
+| `ZAI_API_KEY` | No | Fallback LLM provider (z-ai) |
 | `NEXTAUTH_SECRET` | No | Required for user auth in production |
 | `NEXTAUTH_URL` | No | Public URL of the deployment |
 

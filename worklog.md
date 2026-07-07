@@ -104,3 +104,19 @@ Stage Summary:
 - The OS can take "Build my idea" via the dashboard mission input and autonomously research, plan, build, test, deploy, monitor, and improve.
 - 35 tests passing. tsc + eslint + build all clean.
 - Remaining limitations documented in FINAL_READINESS_REPORT.md (no auth, SQLite concurrency, no CI).
+
+---
+Task ID: 6
+Agent: Claude Code (Fable 5) — Windows portability + truth cycle
+Task: Autonomous evolution loop on new host (Windows 11). Audit real system, fix biggest limitations, verify with real execution.
+
+Work Log:
+- Reality audit: machine had no Node/Bun/npm, .env pointed at /home/z (Linux), C: drive 100% full. None of the prior "production-ready" claims were reproducible. Installed Bun 1.3.14 (winget), fixed .env, installed deps, regenerated prisma client.
+- Disk crisis: C: hit 0 bytes free mid-build. Relocated project to D:\shadow-os-dev\project with an NTFS junction from the original Downloads path (Turbopack rejects node_modules-only junctions). Bun cache redirected to D:.
+- Cycle 1 (cross-platform execution): tools/sandbox spawned hardcoded /bin/sh — every terminal/git/package call failed on Windows (3 test failures). Added agent-runtime/shell.ts (Git Bash resolution + backslash normalization). Quoted interpolated paths (project path contains a space). Fixed never-interpolated "cd ${repoPath}" plain-string bug. Fixed executionId allocation race (P2002 crash on parallel tasks). Fixed false-deadlock in runPipeline (stale progress flag checked after Promise.race) — every mission previously died at ENGINEERING. Replaced setsid//tmp deploy start with nohup. Added scripts/verify-mission.ts benchmark. Result: 35/35 tests, full 7-task mission PASS.
+- Cycle 2 (context handoff + honesty): orchestrator now passes dependency outputs (repoPath, stack→stackHint, topic) into dependent tasks — QUALITY scanned 3 real tests (was 0 in an empty dir), DEPLOYMENT builds the actual repo. DEPLOYMENT throws on missing repoPath (was vacuous DONE), honestly skips serve for CLI/library stacks, health check accepts any HTTP response (scaffolded API 404s at /). RESEARCH reports confidence 0% with 0 sources (was fabricated 50%). Orphaned RUNNING execution reaper (runs at dispatch). Numeric id allocation (lexicographic broke at 4 digits). Provider-agnostic LLM adapter: ANTHROPIC_API_KEY (Claude, preferred) or ZAI_API_KEY; env validation + README updated. 6 new regression tests.
+- Docs: SYSTEM_REALITY_REPORT.md + EVOLUTION_BACKLOG.md rewritten from measured facts.
+
+Verification: tsc 0 errors, eslint 0 errors, 41/41 tests, next build OK, CLI mission 7/7 DONE with honest summaries.
+
+Unresolved / next: no auth on any route; LLM unexercised without a key (rule fallbacks only); QUALITY generated tests are smoke-only; shell-injection surface in goal/topic interpolation; boardroom/reality-engine/customer-sim/competition phases not started; seed data mixes with runtime data; no CI.

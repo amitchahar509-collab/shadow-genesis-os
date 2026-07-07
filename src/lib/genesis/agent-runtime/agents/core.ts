@@ -60,11 +60,13 @@ function ruleBasedPlan(goal: string) {
   };
 }
 
-async function nextTaskNumber(): Promise<number> {
-  const last = await db.genesisTask.findFirst({ orderBy: { taskId: "desc" }, select: { taskId: true } });
-  if (!last) return 26;
-  const m = last.taskId.match(/^T-(\d+)$/);
-  return m ? parseInt(m[1], 10) + 1 : 26;
+export async function nextTaskNumber(): Promise<number> {
+  // String ordering breaks at 4 digits ("T-999" > "T-1000") — take recent rows
+  // by createdAt (allocation is monotonic) and compute the max numerically.
+  const recent = await db.genesisTask.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { taskId: true } });
+  let max = 25; // seed data occupies T-001..T-025
+  for (const r of recent) { const m = r.taskId.match(/^T-(\d+)$/); if (m) max = Math.max(max, parseInt(m[1], 10)); }
+  return max + 1;
 }
 
 // ============ RESEARCH ============
@@ -91,7 +93,8 @@ export class ResearchAgent extends BaseAgent {
       const out = await ctx.tool("browser", "fetch", { url: src.url });
       if (out.ok && out.raw) findings.push({ url: src.url, title: src.title, excerpt: out.raw.slice(0, 600) });
     }
-    const confidence = Math.min(50 + sources.length * 4 + findings.length * 8, 95);
+    // Zero sources means the browser tool is unavailable/failed — report 0, not a fabricated baseline.
+    const confidence = sources.length === 0 ? 0 : Math.min(50 + sources.length * 4 + findings.length * 8, 95);
     const category = /(competitor|alternative)/.test(goal) ? "COMPETITOR" : /(market|size|growth)/.test(goal) ? "OPPORTUNITY" : "MARKET";
     const report = await db.researchReport.create({ data: { topic: goal, category, summary: `Researched "${goal}" across ${sources.length} sources.`, findings: JSON.stringify(findings.map((f) => `- ${f.title}: ${f.excerpt.slice(0, 200)}`)), evidence: JSON.stringify(sources.map((s) => ({ title: s.title, url: s.url, snippet: s.snippet ?? "" }))), confidence, status: "PUBLISHED" } });
     const reportPath = path.join(ctx.sandboxRoot, "research-report.md");
@@ -350,11 +353,13 @@ export class DeploymentAgent extends BaseAgent {
   readonly department = "engineering";
   readonly description = "Build detection, env validation, deployment, health monitor, rollback";
   protected async run(input: AgentRunInput, ctx: AgentRunContext) {
-    const params = (input.context ?? {}) as { repoPath?: string; target?: string; requiredEnv?: string[]; port?: number; };
+    const params = (input.context ?? {}) as { repoPath?: string; target?: string; requiredEnv?: string[]; port?: number; stack?: string; stackHint?: string; };
     const repoPath = params.repoPath ?? "";
-    if (!repoPath) return { summary: "no repoPath provided", artifacts: [], output: { ok: false } };
+    if (!repoPath || !(await pathExists(repoPath))) throw new Error(`no repoPath in context (got "${repoPath}") — dependency handoff missing or build never produced a repo`);
     const target = params.target ?? "local";
     const port = params.port ?? 3001;
+    const stack = params.stack ?? params.stackHint ?? "";
+    const isServerStack = stack === "nextjs" || stack === "node-api";
     // Security release check
     const blockers = await db.securityFinding.findMany({ where: { status: "OPEN", blocksRelease: true } });
     if (blockers.length > 0) {
@@ -372,20 +377,39 @@ export class DeploymentAgent extends BaseAgent {
         return { summary: `Build failed`, artifacts: [], output: { ok: false, recordId: record.id } };
       }
     }
+    // A CLI/library has no server to run — its start script executes and exits.
+    // Report that honestly instead of health-checking a port nothing listens on.
+    let startScript = "";
+    if (pkgExists) {
+      try { const pkg = JSON.parse(await fs.readFile(path.join(repoPath, "package.json"), "utf8")) as { scripts?: Record<string, string> }; startScript = pkg.scripts?.start ?? ""; } catch {}
+    }
+    const hasStartScript = Boolean(startScript);
+    if (!hasStartScript || (stack && !isServerStack)) {
+      await db.deploymentRecord.update({ where: { id: record.id }, data: { status: "DEPLOYED", log: "No start script — build verified, nothing to serve" } });
+      await ctx.emit({ action: "DEPLOY", detail: `no start script in ${repoPath} — build verified, nothing to serve`, level: "INFO", category: "DEPLOY" });
+      return { summary: `Build verified for ${target}; no start script — nothing to serve (CLI/library)`, artifacts: [], output: { target, url: null, skipped: "NO_START_SCRIPT", recordId: record.id } };
+    }
     // Start local server
     let url: string | null = null;
     if (target === "local") {
       if (pkgExists) {
+        // The host may not have node — bun runs node entrypoints natively, so
+        // "node <file>" start scripts are executed as "bun <file>".
+        const nodeEntry = startScript.match(/^node\s+(\S+)$/)?.[1];
+        const runCmd = nodeEntry ? `bun ${nodeEntry}` : "bun run start";
         // nohup + & works in both /bin/sh and Git Bash on Windows (setsid is Linux-only)
-        await ctx.tool("terminal", "exec", { command: `cd "${repoPath}" && nohup sh -c 'PORT=${port} bun run start' > deploy-${record.id}.log 2>&1 &`, timeoutMs: 5_000 });
+        await ctx.tool("terminal", "exec", { command: `cd "${repoPath}" && nohup sh -c 'PORT=${port} ${runCmd}' > deploy-${record.id}.log 2>&1 &`, timeoutMs: 5_000 });
         url = `http://localhost:${port}`;
         // Health check
         await new Promise((r) => setTimeout(r, 3000));
+        // Any HTTP response means the server is listening — a 404 at "/" is
+        // still a live server (the scaffolded API only serves /items).
         const health = await fetch(`${url}`, { signal: AbortSignal.timeout(2000) }).catch(() => null);
-        const healthOk = health?.ok ?? false;
+        const healthOk = health !== null;
         await db.deploymentRecord.update({ where: { id: record.id }, data: { status: healthOk ? "DEPLOYED" : "UNHEALTHY", url, health: healthOk ? "HEALTHY" : "UNHEALTHY", log: `Health: ${healthOk ? "ok" : "failed"}` } });
         await ctx.emit({ action: "DEPLOY", detail: `local → ${url} (${healthOk ? "healthy" : "unhealthy"})`, level: healthOk ? "SUCCESS" : "ERROR", category: "DEPLOY" });
-        return { summary: `Deployed to ${target}: ${url} (${healthOk ? "healthy" : "unhealthy"})`, artifacts: [{ type: "DEPLOYMENT", path: repoPath, description: `Deployed app`, size: 0 }], output: { target, url, healthOk, recordId: record.id } };
+        if (!healthOk) throw new Error(`deployment unhealthy: server at ${url} did not respond within 5s (see deploy-${record.id}.log in repo)`);
+        return { summary: `Deployed to ${target}: ${url} (healthy)`, artifacts: [{ type: "DEPLOYMENT", path: repoPath, description: `Deployed app`, size: 0 }], output: { target, url, healthOk, recordId: record.id } };
       }
     }
     await db.deploymentRecord.update({ where: { id: record.id }, data: { status: "DEPLOYED", url } });

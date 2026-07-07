@@ -128,10 +128,12 @@ export interface AgentRunContext {
 }
 
 async function nextExecutionNumber(): Promise<number> {
-  const last = await db.agentExecution.findFirst({ orderBy: { executionId: "desc" }, select: { executionId: true } });
-  if (!last) return 1;
-  const m = last.executionId.match(/^EX-(\d+)$/);
-  return m ? parseInt(m[1], 10) + 1 : 1;
+  // String ordering on ids breaks once digit counts differ — take recent rows
+  // by createdAt (allocation is monotonic) and compute the max numerically.
+  const recent = await db.agentExecution.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { executionId: true } });
+  let max = 0;
+  for (const r of recent) { const m = r.executionId.match(/^EX-(\d+)$/); if (m) max = Math.max(max, parseInt(m[1], 10)); }
+  return max + 1;
 }
 
 // Parallel agents racing nextExecutionNumber() used to mint duplicate EX ids
