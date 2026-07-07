@@ -125,7 +125,7 @@ export class ArchitectAgent extends BaseAgent {
     const scaffold = scaffoldRepo(stack, topic);
     for (const file of scaffold.files) { const p = path.join(repoDir, file.path); await fs.mkdir(path.dirname(p), { recursive: true }); await fs.writeFile(p, file.content, "utf8"); }
     await fs.writeFile(path.join(repoDir, ".gitignore"), "node_modules\n.next\ndist\n.env\n*.log\n", "utf8");
-    await ctx.tool("terminal", "exec", { command: `git -C ${repoDir} init && git -C ${repoDir} add . && git -C ${repoDir} -c user.email=genesis@shadow.os -c user.name=ARCHITECT commit -m "chore: scaffold ${stack} for ${topic}"` });
+    await ctx.tool("terminal", "exec", { command: `git -C "${repoDir}" init && git -C "${repoDir}" add . && git -C "${repoDir}" -c user.email=genesis@shadow.os -c user.name=ARCHITECT commit -m "chore: scaffold ${stack} for ${topic}"` });
     await ctx.recordMemory({ type: "PROCEDURAL", title: `Architecture: ${topic} (${stack})`, content: archMd.slice(0, 4000), tags: ["architect", stack, "architecture"], importance: 8 });
     const archStat = await fs.stat(archPath);
     return { summary: `Architected "${topic}" (${stack}): ${scaffold.files.length} files scaffolded, initial commit created.`, artifacts: [{ type: "DESIGN_DOC", path: archPath, description: `Architecture for ${topic}`, size: archStat.size }, { type: "REPOSITORY", path: repoDir, description: `Scaffolded ${stack} repo`, size: 0 }], output: { topic, stack, repoPath: repoDir, architecturePath: archPath, filesScaffolded: scaffold.files.length } };
@@ -164,10 +164,10 @@ export class EngineeringAgent extends BaseAgent {
       await copyDir(repoPath, dest);
       repoPath = dest;
     }
-    await ctx.tool("terminal", "exec", { command: `git -C ${repoPath} init 2>/dev/null; true` });
+    await ctx.tool("terminal", "exec", { command: `git -C "${repoPath}" init 2>/dev/null; true` });
     // Install
     const installCmd = stack === "python" ? "pip install -r requirements.txt 2>&1 || true" : "bun install 2>&1 || npm install 2>&1";
-    const install = await ctx.tool("terminal", "exec", { command: `cd ${repoPath} && ${installCmd}`, timeoutMs: 180_000 });
+    const install = await ctx.tool("terminal", "exec", { command: `cd "${repoPath}" && ${installCmd}`, timeoutMs: 180_000 });
     await ctx.emit({ action: "INSTALL", detail: `deps → exit ${install.ok ? 0 : "fail"}`, level: install.ok ? "SUCCESS" : "WARNING", category: "BUILD" });
     // Build + test loop
     let attempt = 0, testsPassed = 0, testsFailed = 0, buildOk = false, testsOk = false;
@@ -175,12 +175,12 @@ export class EngineeringAgent extends BaseAgent {
     while (attempt <= maxRepairs) {
       attempt++;
       if (stack !== "python") {
-        const buildCmd = stack === "nextjs" ? "cd ${repoPath} && (bun run build 2>&1 || npm run build 2>&1)" : `cd ${repoPath} && (node -c src/index.js 2>&1 || node -c src/server.js 2>&1 || true)`;
+        const buildCmd = stack === "nextjs" ? `cd "${repoPath}" && (bun run build 2>&1 || npm run build 2>&1)` : `cd "${repoPath}" && (node -c src/index.js 2>&1 || node -c src/server.js 2>&1 || true)`;
         const build = await ctx.tool("terminal", "exec", { command: buildCmd, timeoutMs: 120_000 });
         buildOk = build.ok;
         await ctx.emit({ action: "BUILD", detail: `attempt ${attempt} → ${buildOk ? "ok" : "fail"}`, level: buildOk ? "SUCCESS" : "WARNING", category: "BUILD" });
       } else buildOk = true;
-      const testCmd = stack === "python" ? `cd ${repoPath} && (python -m pytest -q 2>&1 || true)` : `cd ${repoPath} && (bun test 2>&1 || npm test 2>&1 || true)`;
+      const testCmd = stack === "python" ? `cd "${repoPath}" && (python -m pytest -q 2>&1 || true)` : `cd "${repoPath}" && (bun test 2>&1 || npm test 2>&1 || true)`;
       const tests = await ctx.tool("terminal", "exec", { command: testCmd, timeoutMs: 120_000 });
       testsOk = tests.ok;
       const m = tests.raw?.match(/(\d+)\s+pass/i); const f = tests.raw?.match(/(\d+)\s+fail/i);
@@ -199,7 +199,7 @@ export class EngineeringAgent extends BaseAgent {
     }
     const finalOk = buildOk && testsOk;
     if (finalOk) {
-      await ctx.tool("terminal", "exec", { command: `cd ${repoPath} && git add -A && git -c user.email=genesis@shadow.os -c user.name=ENGINEERING commit -m "feat: ship ${topic} (${stack})" 2>&1 || true` });
+      await ctx.tool("terminal", "exec", { command: `cd "${repoPath}" && git add -A && git -c user.email=genesis@shadow.os -c user.name=ENGINEERING commit -m "feat: ship ${topic} (${stack})" 2>&1 || true` });
     }
     const version = `eng-${Date.now().toString(36)}`;
     await db.buildCheckpoint.create({ data: { version, type: finalOk ? "RELEASE" : "ROLLBACK", summary: `ENGINEERING ${finalOk ? "shipped" : "failed"} ${topic} (${stack}). ${testsPassed}/${testsPassed + testsFailed} tests.`, changesCount: repairedFiles.length, testsPassed, testsFailed, status: finalOk ? "PASSED" : "FAILED" } });
@@ -331,7 +331,7 @@ export class QualityAgent extends BaseAgent {
       if (test) { await fs.mkdir(path.dirname(testPath), { recursive: true }); await fs.writeFile(testPath, test, "utf8"); generatedTests.push(testRel); }
     }
     // Run tests
-    const testResult = await ctx.tool("terminal", "exec", { command: `cd ${repoPath} && (bun test 2>&1 || npm test 2>&1 || python -m pytest -q 2>&1 || true)`, timeoutMs: 120_000 });
+    const testResult = await ctx.tool("terminal", "exec", { command: `cd "${repoPath}" && (bun test 2>&1 || npm test 2>&1 || python -m pytest -q 2>&1 || true)`, timeoutMs: 120_000 });
     const m = testResult.raw?.match(/(\d+)\s+pass/i); const f = testResult.raw?.match(/(\d+)\s+fail/i);
     const testsPassed = m ? parseInt(m[1], 10) : 0; const testsFailed = f ? parseInt(f[1], 10) : 0;
     await db.testRun.create({ data: { executionId: ctx.executionId, taskId: input.taskId ?? null, suite: "quality-tests", passed: testsPassed, failed: testsFailed, skipped: 0, durationMs: 0, status: testResult.ok ? "PASSED" : "FAILED", output: (testResult.raw ?? "").slice(-4000) } });
@@ -375,9 +375,9 @@ export class DeploymentAgent extends BaseAgent {
     // Start local server
     let url: string | null = null;
     if (target === "local") {
-      const startCmd = pkgExists ? `cd ${repoPath} && PORT=${port} (bun run start 2>&1 || npm run start 2>&1) &` : "";
-      if (startCmd) {
-        await ctx.tool("terminal", "exec", { command: `cd ${repoPath} && setsid sh -c 'PORT=${port} bun run start' > /tmp/deploy-${record.id}.log 2>&1 &`, timeoutMs: 5_000 });
+      if (pkgExists) {
+        // nohup + & works in both /bin/sh and Git Bash on Windows (setsid is Linux-only)
+        await ctx.tool("terminal", "exec", { command: `cd "${repoPath}" && nohup sh -c 'PORT=${port} bun run start' > deploy-${record.id}.log 2>&1 &`, timeoutMs: 5_000 });
         url = `http://localhost:${port}`;
         // Health check
         await new Promise((r) => setTimeout(r, 3000));

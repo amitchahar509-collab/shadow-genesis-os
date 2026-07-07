@@ -36,13 +36,10 @@ export abstract class BaseAgent {
   protected abstract run(input: AgentRunInput, ctx: AgentRunContext): Promise<{ summary: string; artifacts: { type: string; path: string; description: string; size: number }[]; output: Record<string, unknown>; }>;
 
   async execute(input: AgentRunInput): Promise<AgentRunResult> {
-    const execNum = await nextExecutionNumber();
-    this.executionId = `EX-${execNum.toString().padStart(6, "0")}`;
+    this.executionId = await allocateExecution({ agent: this.name, taskId: input.taskId ?? null, projectId: input.projectId ?? null, goal: input.goal, parentExecutionId: input.parentExecutionId ?? null });
     const sandbox = path.resolve(process.cwd(), ".genesis-workspace", this.name.toLowerCase(), this.executionId);
     await fs.mkdir(sandbox, { recursive: true });
     this.sandboxRoot = sandbox;
-
-    await db.agentExecution.create({ data: { executionId: this.executionId, agent: this.name, taskId: input.taskId ?? null, projectId: input.projectId ?? null, goal: input.goal, status: "RUNNING", startedAt: new Date(), parentExecutionId: input.parentExecutionId ?? null } });
 
     const start = Date.now();
     let toolCalls = 0, tokensUsed = 0, retries = 0;
@@ -135,6 +132,29 @@ async function nextExecutionNumber(): Promise<number> {
   if (!last) return 1;
   const m = last.executionId.match(/^EX-(\d+)$/);
   return m ? parseInt(m[1], 10) + 1 : 1;
+}
+
+// Parallel agents racing nextExecutionNumber() used to mint duplicate EX ids
+// and crash on the unique constraint. Serialize allocation in-process and
+// retry on P2002 to also survive a second process (dev server + tests).
+let executionIdChain: Promise<unknown> = Promise.resolve();
+async function allocateExecution(data: { agent: string; taskId: string | null; projectId: string | null; goal: string; parentExecutionId: string | null }): Promise<string> {
+  const attempt = async (): Promise<string> => {
+    for (let i = 0; ; i++) {
+      const execNum = await nextExecutionNumber();
+      const executionId = `EX-${execNum.toString().padStart(6, "0")}`;
+      try {
+        await db.agentExecution.create({ data: { executionId, agent: data.agent, taskId: data.taskId, projectId: data.projectId, goal: data.goal, status: "RUNNING", startedAt: new Date(), parentExecutionId: data.parentExecutionId } });
+        return executionId;
+      } catch (e) {
+        const code = (e as { code?: string })?.code;
+        if (code !== "P2002" || i >= 4) throw e;
+      }
+    }
+  };
+  const run = executionIdChain.then(attempt, attempt);
+  executionIdChain = run.catch(() => {});
+  return run;
 }
 
 function truncate(s: string, n: number): string { return s.length > n ? s.slice(0, n - 1) + "…" : s; }

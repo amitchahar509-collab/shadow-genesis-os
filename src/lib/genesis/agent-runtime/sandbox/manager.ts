@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import { db } from "@/lib/db";
 import { emit, events } from "../event-bus";
+import { resolveShell, normalizeCommand } from "../shell";
 
 export interface Sandbox {
   sandboxId: string; root: string; executionId: string | null; projectId: string | null;
@@ -66,7 +67,8 @@ export async function runInSandbox(sandboxId: string, command: string, opts?: { 
   await fs.mkdir(sb.logPath, { recursive: true });
   return new Promise<{ exitCode: number; stdout: string; stderr: string; durationMs: number; pid?: number }>((resolve) => {
     const start = Date.now();
-    const child = spawn("/bin/sh", ["-c", command], { cwd: sb.root, env, stdio: ["ignore", "pipe", "pipe"], detached: Boolean(opts?.detach) });
+    const shell = resolveShell();
+    const child = spawn(shell.file, [...shell.args, normalizeCommand(command)], { cwd: sb.root, env, stdio: ["ignore", "pipe", "pipe"], detached: Boolean(opts?.detach) });
     if (opts?.detach) { child.unref(); sb.processes.add(child); if (child.pid) { sb.pid = child.pid; db.sandbox.update({ where: { sandboxId }, data: { pid: child.pid } }).catch(() => {}); } }
     let stdout = "", stderr = "";
     const timer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, timeoutMs);

@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
 import vm from "node:vm";
+import { resolveShell, normalizeCommand } from "../shell";
 
 export interface ToolContext {
   executionId: string;
@@ -39,7 +40,8 @@ function resolveSafe(root: string, raw: string): string {
 async function sh(cwd: string, cmd: string, timeoutMs = DEFAULT_TIMEOUT) {
   return new Promise<{ exitCode: number; stdout: string; stderr: string; durationMs: number }>((resolve) => {
     const start = Date.now();
-    const child = spawn("/bin/sh", ["-c", cmd], { cwd, env: { ...process.env, CI: "1" }, stdio: ["ignore", "pipe", "pipe"] });
+    const shell = resolveShell();
+    const child = spawn(shell.file, [...shell.args, normalizeCommand(cmd)], { cwd, env: { ...process.env, CI: "1" }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "", stderr = "";
     const timer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, timeoutMs);
     child.stdout.on("data", (b: Buffer) => { stdout += b.toString("utf8").slice(0, MAX_OUT); });

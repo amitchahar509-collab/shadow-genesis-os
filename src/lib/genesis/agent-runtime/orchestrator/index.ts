@@ -75,14 +75,17 @@ export async function runPipeline(taskIds: string[], projectId?: string) {
         results.push({ taskId: id, agent: task.ownerAgent, status: "BLOCKED", summary: `blocked by failed deps: ${depFailed.join(", ")}` });
         progress = true; continue;
       }
-      running.set(id, runTaskWithRetry(id, 2, projectId).then((r) => { if (r.status === "DONE") done.add(id); else failed.add(id); running.delete(id); return r; }));
+      running.set(id, runTaskWithRetry(id, 2, projectId).then((r) => { if (r.status === "DONE") done.add(id); else failed.add(id); running.delete(id); results.push(r); return r; }));
       progress = true;
     }
-    if (running.size > 0) await Promise.race(running.values());
+    // Deadlock check must happen BEFORE waiting: a task completing inside the
+    // race can unblock dependents, so an empty `running` after the wait with a
+    // stale `progress` flag is not a deadlock — loop around and re-check.
     if (!progress && running.size === 0) {
       for (const id of taskIds) if (!done.has(id) && !failed.has(id)) { failed.add(id); results.push({ taskId: id, agent: taskMap.get(id)?.ownerAgent ?? "?", status: "BLOCKED", summary: "deadlock" }); }
       break;
     }
+    if (running.size > 0) await Promise.race(running.values());
   }
   await Promise.all(running.values());
   return results;
