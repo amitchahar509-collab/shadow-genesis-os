@@ -96,6 +96,11 @@ curl -X POST http://localhost:3000/api/genesis/aegis \
   -H "Content-Type: application/json" \
   -d '{"statement":"Demand for X is rising","evidence":[{"stance":"SUPPORT","summary":"survey","source":"http://a","sourceType":"WEB","weight":0.8}]}'
 
+# Digital Customer Simulation — simulate virtual buyers → CUSTOMER_REALITY_SCORE (labelled SIMULATION, not real users)
+curl -X POST http://localhost:3000/api/genesis/customers \
+  -H "Content-Type: application/json" \
+  -d '{"goal":"AI invoicing for freelancers","context":{"potentialValue":8,"competition":4,"personaCount":300,"price":25}}'
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

@@ -181,3 +181,23 @@ Verification: tsc 0 errors; eslint 0 errors; 59/59 tests (was 53); next build co
 Self-improvement re-audit (next tasks in V6_COMPLETION_BACKLOG): A3 Digital Customer Simulation (recommended next — turns predicted demand into simulated buyers) → A4 wire VENTURE→AEGIS→BOARD into the CEO plan → A5 dashboard UI for the new API-only intelligence → A10 exercise LLM → A11 auth.
 
 Commit: cycles 4-6 (Boardroom, Venture Analyst, AEGIS) committed on branch v6-intelligence-layers.
+
+---
+Task ID: 10
+Agent: Claude Code (Opus 4.8) — V7 cycle 7: Digital Customer Simulation (Phase 2) + Phase 0 audit
+
+Task: V7 Autonomous Venture loop. Phase 0 audit, then build the customer-reality layer the final pipeline requires between Venture Analysis and the Boardroom. Loop requires COMMIT.
+
+Work Log:
+- Phase 0: V7_REALITY_AUDIT.md (COMPLETE/PARTIAL/MISSING/FAKE/BLOCKERS from measured inspection: 14 agents, 44 models, 61 routes, 59 tests) + V7_EXECUTION_BACKLOG.md (V1-V12 ranked; reuse-not-duplicate).
+- Phase 2 Digital Customer Simulation (agents/v7-customer.ts): CUSTOMER agent. Procedurally generates N (default 200, ≤2000) virtual personas with a seeded RNG (mulberry32 — reproducible per subject) across 10 industries/6 roles. Each simulates BUY/MAYBE/NO_BUY from problem intensity + affordability (budget vs price) - switching resistance (incumbent) + noise, with willingness-to-pay, objection, trigger. Aggregates buyRate/maybeRate, avg WTP, price band (p25/median/p75), top objections/triggers/missing-features, per-industry segments → CUSTOMER_REALITY_SCORE (conversion*0.5 + intensity*0.25 + WTP-alignment*0.25). Models: CustomerSimulation + CustomerPersona (persists aggregate + 24-persona sample, not all N). Artifact CUSTOMER_REALITY.md.
+- Honesty (never fake users): everything labelled SIMULATION. The AEGIS claim it asserts is SIMULATION-typed at weight 0.3 with declared unknowns ("procedurally generated, not real customers"; "WTP modelled, not observed") — a simulated buy-rate cannot become real market evidence.
+- Connected to pipeline: AEGIS (asserts demand claim) + Boardroom (Customer Representative seat now reads customerRealityScore; readSignals threads it, CUSTOMER heuristic speaks from simulated buyer behaviour when a sim ran). Matches final flow Venture → Customer Simulation → Boardroom.
+- Registered CUSTOMER in AGENT_REGISTRY, collab ALL_AGENTS + edges, tool PERMISSIONS (filesystem, memory). API /api/genesis/customers (run/list/detail).
+- Tests: tests/agent-runtime/customer.test.ts (6) — registration, reality score + artifact + persona sample cap, strong>weak, seeded reproducibility, SIMULATION-typed AEGIS claim, Customer-seat lifts on strong reality.
+
+Verification: tsc 0 errors; eslint 0 errors; 65/65 tests (was 59); next build compiles /api/genesis/customers. E2E chain VENTURE→CUSTOMER→BOARD: strong-fit → VENTURE 79 / CUSTOMER 79% buy reality 81 → Customer-seat GO → BOARD GO; weak-fit → VENTURE 27 / CUSTOMER 17% buy reality 46 → Customer-seat ABSTAIN → BOARD NO_GO 79%. (bun run build standalone cp still fails on the Windows junction — pre-existing.)
+
+Self-improvement re-audit: the final pipeline now has every reality gate except automatic wiring. Next (V7_EXECUTION_BACKLOG): V2 wire VENTURE→AEGIS→CUSTOMER→BOARD into the CEO plan (makes the whole chain run on one "create a company" prompt — the completion condition) → V4 Approval Control Center → V11 exercise LLM → V7 auth.
+
+Commit: cycle 7 committed on branch v6-intelligence-layers.

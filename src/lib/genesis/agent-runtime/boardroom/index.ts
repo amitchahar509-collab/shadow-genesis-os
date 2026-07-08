@@ -113,6 +113,9 @@ function readSignals(context: Record<string, unknown> = {}) {
     // 1-10: how crowded the market is (higher = more competitors). The analyst's
     // `competition` dimension is inverted (100 = wide open), so translate it back.
     competition: context.competition !== undefined && hasVenture ? (100 - num(context.competition, 50)) / 10 : num(context.competition, 5),
+    // 0-100 CUSTOMER_REALITY_SCORE from the Digital Customer Simulation, if run.
+    // -1 means "no simulation" so the Customer seat keeps its evidence-based logic.
+    customerReality: typeof context.customerRealityScore === "number" ? num(context.customerRealityScore, 50) : -1,
   };
 }
 
@@ -135,8 +138,14 @@ function heuristicArgument(role: BoardRole, s: ReturnType<typeof readSignals>): 
       if (s.potentialValue < 6) concerns.push("outcome may not clear the power-law bar");
       break;
     case "CUSTOMER":
-      score = (s.confidence - 50) / 20 + (s.evidence > 2 ? 1 : -1);
-      if (s.evidence < 2) concerns.push("insufficient evidence the pain is acute enough to switch");
+      if (s.customerReality >= 0) {
+        // A customer simulation ran — speak from simulated buyer behaviour.
+        score = (s.customerReality - 50) / 18;
+        if (s.customerReality < 45) concerns.push(`simulated buy-rate is weak (reality ${Math.round(s.customerReality)}/100)`);
+      } else {
+        score = (s.confidence - 50) / 20 + (s.evidence > 2 ? 1 : -1);
+        if (s.evidence < 2) concerns.push("insufficient evidence the pain is acute enough to switch");
+      }
       break;
     case "COMPETITOR":
       score = -(Math.max(0, s.competition - 4) * 0.6) + (s.potentialValue - 5) * 0.2;

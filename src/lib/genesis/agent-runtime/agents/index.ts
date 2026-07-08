@@ -1,4 +1,4 @@
-/** Agent Registry — V6 with 14 agents. */
+/** Agent Registry — V7 with 15 agents. */
 
 import type { BaseAgent } from "../base-agent";
 import { CeoAgent, ResearchAgent, ArchitectAgent, EngineeringAgent, DesignAgent, GrowthAgent, QualityAgent, DeploymentAgent, SecurityAgent } from "./core";
@@ -7,6 +7,7 @@ import { BusinessValidationAgent } from "./v4-validation";
 import { RevenueAgent } from "./v4-revenue";
 import { InternetAgent } from "./v4-internet";
 import { VentureAgent } from "./v6-venture";
+import { CustomerSimulationAgent } from "./v7-customer";
 
 type AgentCtor = new () => BaseAgent;
 
@@ -25,6 +26,7 @@ export const AGENT_REGISTRY: Record<string, AgentCtor> = {
   REVENUE: RevenueAgent,
   INTERNET: InternetAgent,
   VENTURE: VentureAgent,
+  CUSTOMER: CustomerSimulationAgent,
 };
 
 export const AGENT_NAMES = Object.keys(AGENT_REGISTRY);

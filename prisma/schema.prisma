@@ -654,3 +654,47 @@ model Evidence {
   @@index([claimId])
 }
 
+// ============ V7 — DIGITAL CUSTOMER SIMULATION (Phase 2): SIMULATED, never real users ============
+model CustomerSimulation {
+  id                  String   @id @default(cuid())
+  simulationId        String   @unique // SIM-000001
+  subject             String  // opportunity title / goal being tested
+  opportunityId       String?
+  personaCount        Int      @default(0) // how many virtual customers were simulated
+  buyRate             Float    @default(0) // 0-100 % who would BUY
+  maybeRate           Float    @default(0) // 0-100 % MAYBE
+  realityScore        Float    @default(0) // 0-100 CUSTOMER_REALITY_SCORE
+  avgWillingnessToPay Float    @default(0) // currency units / month
+  pricePoints         String   @default("{}") // JSON { p25, median, p75 }
+  topObjections       String   @default("[]") // JSON [{objection, count}]
+  topTriggers         String   @default("[]") // JSON [{trigger, count}]
+  missingFeatures     String   @default("[]") // JSON [{feature, count}]
+  segments            String   @default("[]") // JSON per-industry breakdown
+  mode                String   @default("HEURISTIC") // LLM | HEURISTIC — how personas/objections were formed
+  artifactPath        String? // CUSTOMER_REALITY.md
+  createdAt           DateTime @default(now())
+  personas            CustomerPersona[] // a representative SAMPLE (not all N)
+
+  @@index([opportunityId])
+}
+
+model CustomerPersona {
+  id               String   @id @default(cuid())
+  personaId        String   @unique // CUST-000001
+  simulationId     String
+  industry         String
+  role             String
+  problemIntensity Float    @default(0) // 0-100 how acute the pain is
+  budget           Float    @default(0) // monthly budget available
+  currentSolution  String   @default("none")
+  decision         String   @default("NO_BUY") // BUY | MAYBE | NO_BUY
+  willingnessToPay Float    @default(0)
+  objection        String? // primary reason not to buy
+  trigger          String? // what would make them buy
+  reasoning        String   @default("")
+  createdAt        DateTime @default(now())
+  simulation       CustomerSimulation @relation(fields: [simulationId], references: [simulationId], onDelete: Cascade)
+
+  @@index([simulationId])
+}
+
