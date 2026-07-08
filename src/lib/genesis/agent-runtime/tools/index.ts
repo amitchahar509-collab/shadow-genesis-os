@@ -279,6 +279,7 @@ const PERMISSIONS: Record<string, string[]> = {
   OPPORTUNITY: ["browser", "memory", "api", "filesystem"],
   REVENUE: ["filesystem", "memory", "browser"],
   INTERNET: ["browser", "api", "memory", "filesystem"],
+  VENTURE: ["filesystem", "memory", "browser", "api"],
 };
 
 export function canUseTool(agent: string, toolName: string): boolean {

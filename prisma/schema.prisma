@@ -558,3 +558,99 @@ model BrowserSession {
   updatedAt   DateTime @updatedAt
 }
 
+// ============ V5 — AI BOARDROOM (Phase 4): no silent decisions ============
+model BoardDecision {
+  id           String   @id @default(cuid())
+  decisionId   String   @unique // BOARD-000001
+  topic        String
+  question     String
+  context      String   @default("{}") // JSON snapshot the board debated over (goal, plan, opportunity, signals)
+  verdict      String   @default("CONDITIONAL") // GO | CONDITIONAL | NO_GO
+  confidence   Float    @default(0) // 0-100, weighted board confidence in the verdict
+  tally        String   @default("{}") // JSON { GO, NO_GO, ABSTAIN }
+  synthesis    String   @default("") // final rationale reconciling the arguments
+  conditions   String   @default("[]") // JSON string[] — must-hold conditions for GO/CONDITIONAL
+  risks        String   @default("[]") // JSON string[] — surfaced risks/blind spots
+  mode         String   @default("HEURISTIC") // LLM | HEURISTIC | MIXED — honest about how stances were formed
+  projectId    String?
+  missionId    String?
+  artifactPath String?  // BOARD_DECISION.md on disk
+  createdAt    DateTime @default(now())
+  arguments    BoardArgument[]
+}
+
+model BoardArgument {
+  id         String   @id @default(cuid())
+  decisionId String
+  role       String   // FOUNDER | CEO | INVESTOR | CUSTOMER | COMPETITOR | CFO | GROWTH | ENGINEER | RISK
+  stance     String   @default("ABSTAIN") // GO | NO_GO | ABSTAIN
+  argument   String
+  concerns   String   @default("[]") // JSON string[]
+  confidence Float    @default(50) // 0-100, this member's confidence in their own stance
+  mode       String   @default("HEURISTIC") // LLM | HEURISTIC
+  createdAt  DateTime @default(now())
+  decision   BoardDecision @relation(fields: [decisionId], references: [decisionId], onDelete: Cascade)
+
+  @@index([decisionId])
+}
+
+// ============ V6 — AI VENTURE ANALYST (Phase 3): judge every opportunity like a VC ============
+model VentureAnalysis {
+  id               String   @id @default(cuid())
+  analysisId       String   @unique // VC-000001
+  opportunityId    String? // links to Opportunity when scoring a discovered opportunity
+  subject          String  // opportunity title or the raw goal analysed
+  marketSize       Float    @default(0) // 0-100
+  timing           Float    @default(0) // 0-100 (is now the moment?)
+  moat             Float    @default(0) // 0-100 (defensibility)
+  competition      Float    @default(0) // 0-100 (higher = weaker/less-crowded, more favorable)
+  distribution     Float    @default(0) // 0-100 (repeatable, affordable reach)
+  founderAdvantage Float    @default(0) // 0-100 (unfair advantage; baseline 50 when unknown)
+  growthPotential  Float    @default(0) // 0-100 (power-law upside)
+  ventureScore     Float    @default(0) // weighted 0-100
+  verdict          String   @default("WATCH") // INVEST | WATCH | PASS
+  thesis           String   @default("") // one-paragraph investment thesis
+  risks            String   @default("[]") // JSON string[]
+  unknowns         String   @default("[]") // JSON string[] — what we do NOT yet know (anti-hallucination)
+  mode             String   @default("HEURISTIC") // LLM | HEURISTIC — honest about how scores were formed
+  artifactPath     String? // VENTURE_SCORE.md on disk
+  createdAt        DateTime @default(now())
+
+  @@index([opportunityId])
+}
+
+// ============ V6 — AEGIS TRUTH ENGINE (Phase 1): never allow unsupported confidence ============
+model Claim {
+  id              String   @id @default(cuid())
+  claimId         String   @unique // CLM-000001
+  statement       String  // "Market demand for X is increasing"
+  subject         String? // what this claim is about: opportunityId | analysisId | goal | topic
+  category        String   @default("MARKET") // MARKET | DEMAND | COMPETITION | FEASIBILITY | TIMING | FINANCIAL | OTHER
+  truthScore      Float    @default(0) // 0-100, evidence-weighted. 0 evidence ⇒ 0.
+  verdict         String   @default("UNSUPPORTED") // SUPPORTED | CONTESTED | UNSUPPORTED
+  supportCount    Int      @default(0)
+  contradictCount Int      @default(0)
+  unknowns        String   @default("[]") // JSON string[] — what remains unverified
+  source          String? // which agent/execution asserted it
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  evidence        Evidence[]
+
+  @@index([subject])
+}
+
+model Evidence {
+  id         String   @id @default(cuid())
+  evidenceId String   @unique // EV-000001
+  claimId    String
+  stance     String   @default("SUPPORT") // SUPPORT | CONTRADICT | NEUTRAL
+  summary    String
+  source     String  // URL or provenance string
+  sourceType String   @default("UNKNOWN") // WEB | MEMORY | COMPUTED | USER | SIMULATION | UNKNOWN
+  weight     Float    @default(1) // 0-1 reliability of this piece of evidence
+  createdAt  DateTime @default(now())
+  claim      Claim    @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
+
+  @@index([claimId])
+}
+

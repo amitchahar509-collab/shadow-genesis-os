@@ -120,3 +120,64 @@ Work Log:
 Verification: tsc 0 errors, eslint 0 errors, 41/41 tests, next build OK, CLI mission 7/7 DONE with honest summaries.
 
 Unresolved / next: no auth on any route; LLM unexercised without a key (rule fallbacks only); QUALITY generated tests are smoke-only; shell-injection surface in goal/topic interpolation; boardroom/reality-engine/customer-sim/competition phases not started; seed data mixes with runtime data; no CI.
+
+---
+Task ID: 7
+Agent: Claude Code (Opus 4.8) — V5 operator cycle: AI Boardroom (Phase 4)
+
+Task: Continue the autonomous upgrade loop (AUDIT → FIND GAP → BUILD → TEST → VERIFY). Advance Genesis from "company builder" toward "company operator" without rebuilding existing architecture.
+
+Work Log:
+- Audit: existing system already implements V5 Phases 1/2/5/6/9 in "V4" form (OPPORTUNITY, BUSINESS_VALIDATION, REVENUE, GROWTH, INTERNET agents) with the honest LLM-or-rules pattern. Confirmed via schema + agent registry + reality report. Highest-leverage genuinely-missing operator differentiator = the AI Boardroom (backlog #9, "no silent decisions").
+- Built AI Boardroom (Phase 4): nine executive seats (Founder, CEO, Investor, Customer Rep, Competitor, CFO, Growth, Engineer, Risk). Each argues a decision from its own incentive → GO/CONDITIONAL/NO_GO, tallied into a verdict + weighted confidence + reconciled synthesis + surfaced conditions/risks. Risk Officer holds a confident-NO_GO veto. New module src/lib/genesis/agent-runtime/boardroom/index.ts.
+- Persistence: BoardDecision + BoardArgument Prisma models (cascade). Artifact: BOARD_DECISION.md rendered per decision.
+- Integration: conveneBoard wired into dispatchGoal after CEO decomposition, before the build pipeline. Advisory by default (records + emits VERDICT); opts.enforceBoard halts the pipeline (tasks → BLOCKED) on a NO_GO. Added boardDecision to DispatchResult.
+- API: GET/POST /api/genesis/boardroom (list decisions / convene ad-hoc / list seats).
+- Honesty (directive FORBIDDEN: never fake): with no LLM key every stance is a labelled rule-based heuristic over numeric signals (confidence/value/difficulty/competition/evidence); mode=HEURISTIC; the artifact banners it and each seat states "not reasoned judgement." mode=LLM when a provider answers, MIXED on partial fallback.
+- Tests: tests/agent-runtime/boardroom.test.ts — 9 seats, one argument per seat, verdict/tally consistency, heuristic labelling, strong-vs-weak signal leaning, Risk veto, persistence + artifact. 6 tests.
+
+Verification: tsc 0 errors; eslint 0 errors; 47/47 tests pass (was 41); next build compiles the new route (mission-lifecycle full-pipeline test still green with the board wired in). E2E: dispatchGoal on a weak/risky goal with enforceBoard → unanimous NO_GO 85% → "Pipeline halted before build"; BOARD-000004/BOARD_DECISION.md written and honestly HEURISTIC-labelled. NOTE: `bun run build`'s post-compile standalone `cp` step still fails on the Windows node_modules junction — pre-existing (documented in SYSTEM_REALITY_REPORT), not caused by this change.
+
+Unresolved / next (ranked in EVOLUTION_BACKLOG): auth on all routes; exercise LLM path with a real key (boardroom debate becomes real reasoning); Digital Customer Simulation (Phase 3); Approval Queue (Phase 11); competition/reality engines; shell-injection hardening; meaningful generated tests; CI.
+
+---
+Task ID: 8
+Agent: Claude Code (Opus 4.8) — V6 operator cycle: AI Venture Analyst (Phase 3)
+
+Task: Continue the autonomous upgrade loop. Advance the "final missing intelligence layers" (V6) without rebuilding. Honor the NEVER STOP rule: self-audit and auto-create the next improvement task.
+
+Work Log:
+- Audit: V6 lists 10 layers. Most overlap existing systems (Acquisition ≈ GROWTH+GrowthExperiment; Usage Learning ≈ observability). The tightest genuinely-missing, high-leverage layer that composes with cycle-4's Boardroom = AI Venture Analyst (#3). Chose it to build the decision chain OPPORTUNITY → VENTURE ANALYSIS → BOARDROOM → BUILD.
+- Built AI Venture Analyst: new registered agent VENTURE (src/lib/genesis/agent-runtime/agents/v6-venture.ts). Scores 7 VC dimensions (marketSize, timing, moat, competition, distribution, founderAdvantage, growthPotential) → weighted VENTURE_SCORE (0-100) + INVEST/WATCH/PASS + written thesis + risks + unknowns. Distinct from BUSINESS_VALIDATION (demand/feasibility). Model VentureAnalysis; artifact VENTURE_SCORE.md.
+- Composition: VENTURE output (ventureScore + dimensions) flows through the orchestrator's existing dependency handoff into the boardroom context. Enriched boardroom readSignals to prefer a ventureScore over raw signals and to invert the analyst's competition dimension — so the board debates a quantified venture.
+- Registered VENTURE across all three registries: AGENT_REGISTRY (agents/index.ts), collab ALL_AGENTS + GRAPH edges, and tool PERMISSIONS.
+- API: GET/POST /api/genesis/venture (analyze opportunity/goal; list analyses).
+- Honesty (never fake): heuristic scores labelled mode=HEURISTIC; artifact banners it; unknowns explicitly declares assumptions (founder advantage baseline 50, market size inferred not measured) so a thin analysis can't pose as conviction.
+- Tests: tests/agent-runtime/venture.test.ts (6) — registration, 7-dim scoring + verdict + artifact, strong>weak, HEURISTIC honesty + declared unknowns, VC-numbered persistence, and the venture→boardroom handoff driving the verdict.
+
+Verification: tsc 0 errors; eslint 0 errors; 53/53 tests (was 47); next build compiles /api/genesis/venture. E2E chain: STRONG (value 9, crowd 2) → VENTURE 79 INVEST → BOARD GO 77% (7-0); WEAK (value 3, difficulty 9, crowd 9, 0 evidence) → VENTURE 27 PASS → BOARD NO_GO 84% (0-9). VENTURE_SCORE.md honestly HEURISTIC-labelled. (bun run build's post-compile standalone cp still fails on the Windows junction — pre-existing.)
+
+NEVER STOP self-audit (what remains weak / next task auto-created):
+- Weakest decision: VENTURE and OPPORTUNITY still run ad-hoc, not inside the CEO plan → backlog #13 (CEO decomposition should insert VENTURE→BOARD before ENGINEERING so every mission is scored+debated before build spend).
+- Missing data: every confidence/marketSize number is COMPUTED, not evidence-verified → backlog #14 AEGIS Truth Engine (claim/evidence/source/confidence/contradiction/unknown ledger) — the anti-hallucination backbone and now the highest-ranked missing layer.
+
+Unresolved / next (ranked in EVOLUTION_BACKLOG): auth; exercise LLM with a real key; AEGIS Truth Engine (#14); auto-insert VENTURE+BOARD into CEO plans (#13); Digital Customer Simulation; Approval Queue; shell-injection hardening; CI.
+
+---
+Task ID: 9
+Agent: Claude Code (Opus 4.8) — V6 cycle 6: AEGIS Truth Engine (Phase 1) + Phase 0 audit
+
+Task: AEGIS + Market Reality completion loop. Phase 0 audit, then build the anti-hallucination evidence backbone. Loop explicitly requires COMMIT.
+
+Work Log:
+- Phase 0: wrote V6_FINAL_AUDIT.md (WORKING/PARTIAL/MISSING/FAKE/BLOCKERS from measured inspection: 14 agents, 42 models, 60 routes, 53→59 tests) and V6_COMPLETION_BACKLOG.md (A1-A11 ranked, no duplication of existing systems).
+- Phase 1 AEGIS Truth Engine (agent-runtime/aegis/index.ts): Claim + Evidence models. scoreEvidence enforces the core invariant — NO evidence ⇒ truthScore 0 ⇒ UNSUPPORTED; net support damped by a prior (k=2) so a single weak source can't reach high confidence; contradictions (weight ≥ half of support) force CONTESTED. assertClaim persists claim+evidence (P2002-retry id allocation); verifySubject aggregates truth per subject; contradictions() lists blind spots. API /api/genesis/aegis (assert/list/verify).
+- A2 Venture⇄AEGIS: VENTURE now asserts "market demand supports a venture-scale outcome" from the opportunity's REAL web sources (SUPPORT/WEB); computed numeric signals are logged NEUTRAL/COMPUTED so a score can never masquerade as verified demand. UNSUPPORTED truth caps INVEST→WATCH, writes a TRUTH line into VENTURE_SCORE.md, and forwards truthScore to the board.
+- Boardroom: an AEGIS truthScore now caps board confidence (0 truth → ≤40) and derives the evidence signal, so Risk/Customer seats react to weak grounding — "never allow unsupported confidence" at the board layer too.
+- Tests: tests/agent-runtime/aegis.test.ts (6) — 0-evidence invariant, SUPPORTED on strong multi-source, CONTESTED on contradiction, volume damping, persistence, and the venture-cannot-INVEST-without-evidence integration.
+
+Verification: tsc 0 errors; eslint 0 errors; 59/59 tests (was 53); next build compiles /api/genesis/aegis. E2E: opportunity WITH 4 web sources → truth 55% CONTESTED → INVEST capped to WATCH → BOARD GO 70%; raw idea with 0 sources → truth 0% UNSUPPORTED → WATCH → BOARD splits 5GO/2NO/2AB @63% (was near-unanimous GO). Honest outcome: high-potential-but-unverified is flagged, not rejected or faked. (bun run build's standalone cp still fails on the Windows junction — pre-existing.)
+
+Self-improvement re-audit (next tasks in V6_COMPLETION_BACKLOG): A3 Digital Customer Simulation (recommended next — turns predicted demand into simulated buyers) → A4 wire VENTURE→AEGIS→BOARD into the CEO plan → A5 dashboard UI for the new API-only intelligence → A10 exercise LLM → A11 auth.
+
+Commit: cycles 4-6 (Boardroom, Venture Analyst, AEGIS) committed on branch v6-intelligence-layers.

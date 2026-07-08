@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getAgent } from "../agents";
 import type { BaseAgent, AgentRunResult } from "../base-agent";
 import { emit, events } from "../event-bus";
+import { conveneBoard, type BoardDecisionResult } from "../boardroom";
 
 if (typeof process !== "undefined") {
   process.on("unhandledRejection", (reason) => {
@@ -27,6 +28,7 @@ async function withAgentLock<T>(agent: string, fn: () => Promise<T>): Promise<T>
 export interface DispatchResult {
   goal: string; projectId?: string;
   ceoExecution?: AgentRunResult;
+  boardDecision?: BoardDecisionResult;
   taskIds: string[];
   taskResults: { taskId: string; agent: string; status: string; summary: string; error?: string }[];
   summary: string;
@@ -47,7 +49,10 @@ export async function reapOrphanedExecutions(maxAgeMs = 60 * 60 * 1000): Promise
   return count;
 }
 
-export async function dispatchGoal(goal: string, opts?: { skipCeo?: boolean; taskIds?: string[]; projectId?: string }): Promise<DispatchResult> {
+export async function dispatchGoal(
+  goal: string,
+  opts?: { skipCeo?: boolean; taskIds?: string[]; projectId?: string; board?: boolean; enforceBoard?: boolean; boardContext?: Record<string, unknown>; missionId?: string },
+): Promise<DispatchResult> {
   const startedAt = new Date();
   await reapOrphanedExecutions().catch(() => {});
   await emit(events.decision("ORCHESTRATOR", `dispatchGoal: ${goal.slice(0, 120)}`));
@@ -58,11 +63,33 @@ export async function dispatchGoal(goal: string, opts?: { skipCeo?: boolean; tas
     if (ceoExecution.status !== "SUCCESS") return { goal, projectId: opts?.projectId, ceoExecution, taskIds: [], taskResults: [], summary: `CEO failed: ${ceoExecution.error ?? ceoExecution.summary}`, startedAt, completedAt: new Date(), durationMs: Date.now() - startedAt.getTime() };
     taskIds = (ceoExecution.output.plan as { tasks: { taskId: string }[] }).tasks.map((t) => t.taskId);
   }
+
+  // AI Boardroom (V5 Phase 4): debate the decision before committing build effort.
+  // Advisory by default — records the verdict and surfaces conditions/risks; only
+  // halts the pipeline when the caller opts into enforcement AND the board says NO_GO.
+  let boardDecision: BoardDecisionResult | undefined;
+  if (opts?.board !== false) {
+    boardDecision = await conveneBoard({
+      topic: goal.slice(0, 120),
+      question: `Should Genesis commit build effort to: "${goal}"?`,
+      context: { goal, plannedTasks: taskIds.length, ...(opts?.boardContext ?? {}) },
+      projectId: opts?.projectId,
+      missionId: opts?.missionId,
+    }).catch(() => undefined);
+    if (boardDecision && opts?.enforceBoard && boardDecision.verdict === "NO_GO") {
+      await emit({ agent: "ORCHESTRATOR", action: "HALT", detail: `board NO_GO (${boardDecision.confidence}%) — pipeline not started`, level: "WARNING", category: "DECISION" });
+      for (const id of taskIds) await db.genesisTask.update({ where: { taskId: id }, data: { status: "BLOCKED" } }).catch(() => {});
+      const completedAt = new Date();
+      return { goal, projectId: opts?.projectId, ceoExecution, boardDecision, taskIds, taskResults: taskIds.map((taskId) => ({ taskId, agent: "?", status: "BLOCKED", summary: `board NO_GO: ${boardDecision!.synthesis.slice(0, 100)}` })), summary: `Board vetoed (NO_GO). Pipeline halted before build.`, startedAt, completedAt, durationMs: completedAt.getTime() - startedAt.getTime() };
+    }
+  }
+
   const taskResults = await runPipeline(taskIds, opts?.projectId);
   const successCount = taskResults.filter((r) => r.status === "DONE").length;
   const failCount = taskResults.filter((r) => r.status === "FAILED").length;
   const completedAt = new Date();
-  return { goal, projectId: opts?.projectId, ceoExecution, taskIds, taskResults, summary: `Pipeline: ${successCount}/${taskResults.length} done, ${failCount} failed.`, startedAt, completedAt, durationMs: completedAt.getTime() - startedAt.getTime() };
+  const boardNote = boardDecision ? ` Board: ${boardDecision.verdict} (${boardDecision.confidence}%).` : "";
+  return { goal, projectId: opts?.projectId, ceoExecution, boardDecision, taskIds, taskResults, summary: `Pipeline: ${successCount}/${taskResults.length} done, ${failCount} failed.${boardNote}`, startedAt, completedAt, durationMs: completedAt.getTime() - startedAt.getTime() };
 }
 
 export async function runPipeline(taskIds: string[], projectId?: string) {

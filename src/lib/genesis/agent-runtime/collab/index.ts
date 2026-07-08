@@ -83,7 +83,7 @@ class StateManager {
 let _sm: StateManager | null = null;
 export function getStateManager(): StateManager { if (!_sm) _sm = new StateManager(); return _sm; }
 
-export const ALL_AGENTS = ["CEO", "RESEARCH", "ARCHITECT", "ENGINEERING", "DESIGN", "GROWTH", "QUALITY", "DEPLOYMENT", "SECURITY", "OPPORTUNITY", "REVENUE", "INTERNET"];
+export const ALL_AGENTS = ["CEO", "RESEARCH", "ARCHITECT", "ENGINEERING", "DESIGN", "GROWTH", "QUALITY", "DEPLOYMENT", "SECURITY", "OPPORTUNITY", "REVENUE", "INTERNET", "VENTURE"];
 
 const GRAPH: Record<string, { to: string; types: MessageType[] }[]> = {
   CEO: ALL_AGENTS.filter((a) => a !== "CEO").map((a) => ({ to: a, types: ["DIRECTIVE", "DELEGATE", "APPROVE", "REJECT"] })),
@@ -97,6 +97,7 @@ const GRAPH: Record<string, { to: string; types: MessageType[] }[]> = {
   OPPORTUNITY: [{ to: "CEO", types: ["FINDINGS"] }, { to: "RESEARCH", types: ["DELEGATE"] }, { to: "GROWTH", types: ["FINDINGS"] }],
   REVENUE: [{ to: "CEO", types: ["FINDINGS"] }, { to: "GROWTH", types: ["FINDINGS"] }],
   INTERNET: [{ to: "RESEARCH", types: ["FINDINGS"] }, { to: "OPPORTUNITY", types: ["FINDINGS"] }, { to: "CEO", types: ["FINDINGS"] }],
+  VENTURE: [{ to: "CEO", types: ["FINDINGS"] }, { to: "OPPORTUNITY", types: ["FINDINGS"] }, { to: "GROWTH", types: ["FINDINGS"] }],
 };
 
 class CollaborationGraph {

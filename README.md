@@ -78,6 +78,24 @@ curl -X POST http://localhost:3000/api/genesis/v4/dispatch \
 # List agents
 curl http://localhost:3000/api/genesis/agents
 
+# Convene the AI Boardroom on a decision (nine executive seats debate → GO/CONDITIONAL/NO_GO)
+curl -X POST http://localhost:3000/api/genesis/boardroom \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Should we build a Notion competitor?","context":{"confidence":70,"potentialValue":8,"difficulty":6,"competition":8}}'
+
+# List recent board decisions (with each seat's argument)
+curl http://localhost:3000/api/genesis/boardroom
+
+# Judge an opportunity like a VC (VENTURE_SCORE + INVEST/WATCH/PASS; feeds the board)
+curl -X POST http://localhost:3000/api/genesis/venture \
+  -H "Content-Type: application/json" \
+  -d '{"goal":"AI meeting notes for lawyers","context":{"potentialValue":8,"difficulty":5,"competition":6}}'
+
+# AEGIS Truth Engine — assert a claim with evidence (no evidence ⇒ UNSUPPORTED, never high confidence)
+curl -X POST http://localhost:3000/api/genesis/aegis \
+  -H "Content-Type: application/json" \
+  -d '{"statement":"Demand for X is rising","evidence":[{"stance":"SUPPORT","summary":"survey","source":"http://a","sourceType":"WEB","weight":0.8}]}'
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 
