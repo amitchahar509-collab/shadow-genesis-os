@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { startLongMission, tick, tickAll } from "@/lib/genesis/agent-runtime/operator";
+import { guard, audit } from "@/lib/genesis/agent-runtime/auth";
 
 /** GET /api/genesis/operator — long-horizon missions.
  *  ?status=ACTIVE|PAUSED|COMPLETED|KILLED  ?limit=20  ?id=LM-000001 (with reviews)
@@ -35,10 +36,13 @@ export async function POST(req: NextRequest) {
  *  body: { action: "tick" | "tickAll" | "pause" | "resume", missionId?, now? (ISO, simulation only — recorded as asOf) }
  */
 export async function PATCH(req: NextRequest) {
+  const g = await guard(req.headers.get("authorization"), "ADMIN");
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
   const body = await req.json().catch(() => ({}));
   const { action, missionId, now } = body as { action?: string; missionId?: string; now?: string };
   const asOf = now ? new Date(now) : undefined;
   if (asOf && Number.isNaN(asOf.getTime())) return NextResponse.json({ error: "invalid now" }, { status: 400 });
+  await audit(g.principal, "OPERATOR_TICK", missionId ?? action ?? "?", String(action));
 
   if (action === "tickAll") return NextResponse.json({ results: await tickAll({ now: asOf }) });
   if (!missionId) return NextResponse.json({ error: "missionId required" }, { status: 400 });

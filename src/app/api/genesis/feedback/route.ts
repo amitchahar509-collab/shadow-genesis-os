@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ingestSignal, processPending, type SignalKind } from "@/lib/genesis/agent-runtime/reality-feedback";
+import { guard, audit } from "@/lib/genesis/agent-runtime/auth";
 
 /** GET /api/genesis/feedback — reality signals and what they generated.
  *  ?subject=OPP-000001  ?kind=ERROR|FEEDBACK|FEATURE_REQUEST|USAGE|RETENTION|CONVERSION
@@ -24,6 +25,9 @@ export async function GET(req: NextRequest) {
  *  body: { kind, productKey, source, detail, subject?, sentiment?, payload? }
  */
 export async function POST(req: NextRequest) {
+  // Products authenticate with a MEMBER (product-scoped) key when enforced.
+  const g = await guard(req.headers.get("authorization"), "MEMBER");
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
   const body = await req.json().catch(() => ({}));
   const { kind, productKey, source, detail, subject, sentiment, payload, projectId } = body as {
     kind?: SignalKind; productKey?: string; source?: string; detail?: string; subject?: string; sentiment?: number; payload?: Record<string, unknown>; projectId?: string;
@@ -33,6 +37,7 @@ export async function POST(req: NextRequest) {
   if (!productKey || !source || !detail) return NextResponse.json({ error: "productKey, source, detail required" }, { status: 400 });
   try {
     const result = await ingestSignal({ kind, productKey, source, detail, subject, sentiment, payload, projectId });
+    await audit(g.principal, "FEEDBACK_INGEST", result.signalId, `${kind} from ${productKey}`);
     return NextResponse.json({ result });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

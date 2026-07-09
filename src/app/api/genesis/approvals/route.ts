@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requestApproval, decide, expireStale, type ActionType } from "@/lib/genesis/agent-runtime/approvals";
+import { guard, audit } from "@/lib/genesis/agent-runtime/auth";
 
 /** GET /api/genesis/approvals — the human control center queue.
  *  ?status=PENDING|APPROVED|REJECTED|EXECUTED|EXPIRED  ?limit=50  ?id=APR-000001
@@ -36,11 +37,15 @@ export async function POST(req: NextRequest) {
  *  body: { requestId, approve: boolean, decidedBy, note? }
  */
 export async function PATCH(req: NextRequest) {
+  // Deciding approvals is human authority — requires ADMIN when auth is enforced.
+  const g = await guard(req.headers.get("authorization"), "ADMIN");
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
   const body = await req.json().catch(() => ({}));
   const { requestId, approve, decidedBy, note } = body as { requestId?: string; approve?: boolean; decidedBy?: string; note?: string };
   if (!requestId || typeof approve !== "boolean" || !decidedBy) return NextResponse.json({ error: "requestId, approve, decidedBy required" }, { status: 400 });
   const result = await decide(requestId, { approve, decidedBy, note });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+  await audit(g.principal, "APPROVAL_DECIDE", requestId, `${approve ? "APPROVED" : "REJECTED"} by ${decidedBy}`);
   return NextResponse.json({ requestId, status: result.status });
 }
 

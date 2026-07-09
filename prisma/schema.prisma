@@ -720,6 +720,72 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — SAAS FOUNDATION (G10): auth, orgs, roles, audit ============
+model AuthUser {
+  id          String   @id @default(cuid())
+  userId      String   @unique // U-000001
+  email       String   @unique
+  name        String?
+  createdAt   DateTime @default(now())
+  memberships Membership[]
+  apiKeys     ApiKey[]
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  orgId       String   @unique // ORG-000001
+  name        String
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  memberships Membership[]
+  apiKeys     ApiKey[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  orgId     String
+  role      String   @default("MEMBER") // OWNER | ADMIN | MEMBER | VIEWER
+  createdAt DateTime @default(now())
+  user      AuthUser     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  org       Organization @relation(fields: [orgId], references: [orgId], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  keyId      String    @unique // AK-000001
+  prefix     String    // gk_XXXXXXXX — identifies the key without revealing it
+  hash       String    @unique // sha256 of the full secret; the plaintext is shown ONCE at creation
+  label      String    @default("default")
+  userId     String
+  orgId      String
+  role       String    @default("MEMBER") // effective role this key authenticates as
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  user       AuthUser     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  org        Organization @relation(fields: [orgId], references: [orgId], onDelete: Cascade)
+
+  @@index([hash])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  auditId   String   @unique // AL-000001
+  actor     String   // userId, or "local" when unenforced
+  orgId     String?
+  role      String?
+  action    String   // APPROVAL_DECIDE | COMPANY_CREATE | OPERATOR_TICK | FEEDBACK_INGEST | KEY_CREATE | BOOTSTRAP …
+  target    String?
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([orgId])
+  @@index([action])
+}
+
 // ============ V8 — BENCHMARK ARENA (G12): Genesis measures itself ============
 model BenchmarkRun {
   id             String   @id @default(cuid())

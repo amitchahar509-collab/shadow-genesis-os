@@ -142,6 +142,14 @@ curl -X POST http://localhost:3000/api/genesis/feedback \
 # CONVERSION with a subject closes that opportunity's approved channel experiment with REAL data:
 #   -d '{"kind":"CONVERSION","productKey":"co-myapp","source":"utm","detail":"reddit launch","subject":"OPP-000001","payload":{"conversions":37,"visitors":920}}'
 
+# Auth (production) — set GENESIS_AUTH_REQUIRED=1, then provision once:
+curl -X POST http://localhost:3000/api/genesis/auth \
+  -H "Content-Type: application/json" \
+  -d '{"action":"bootstrap","email":"you@example.com","orgName":"My Co"}'   # → OWNER apiKey (shown once)
+# Protected mutations then need the key; reads stay open:
+curl -X PATCH http://localhost:3000/api/genesis/operator \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" -d '{"action":"tickAll"}'
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

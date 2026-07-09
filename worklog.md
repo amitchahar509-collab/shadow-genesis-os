@@ -355,3 +355,22 @@ Verification: tsc 0 errors; eslint 0 errors; 105/105 tests (was 98); next build 
 Re-audit: outer learning loop closed; both acquisition honesty boundaries now crossable with genuine data. Next ranked: G10 SaaS/auth (top production blocker — every route open incl. approval + feedback write endpoints) → G1 World Scanner (needs key) → G6 Agent Arena → G7 evolution → G3/G8. Also: exercise the LLM path (one key lifts every heuristic gate + benchmark).
 
 Commit: cycle 14 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 18
+Agent: Claude Code (Opus 4.8) — V8 cycle 15: SaaS foundation / auth (G10)
+
+Task: Close the top production blocker — every /api/genesis/* route was open. Build real auth/orgs/roles/audit. (Billing deferred: the directive forbids autonomous payments; not a blocker.)
+
+Work Log:
+- Models (5): AuthUser, Organization, Membership (role OWNER|ADMIN|MEMBER|VIEWER), ApiKey (sha256 hash stored, plaintext shown once; prefix for identification; revocable), AuditLog. All additive.
+- auth module (agent-runtime/auth/index.ts): sha256 key hashing; parseBearer (gk_ format); authenticate(rawKey)→principal (touches lastUsedAt, rejects revoked); guard(authHeader, minRole)→ok/401/403 with role hierarchy (VIEWER<MEMBER<ADMIN<OWNER); bootstrap (first-run owner+org+OWNER key, refuses if provisioned); createApiKey (plaintext once); audit(principal, action, target, detail). Local-first enforcement: GENESIS_AUTH_REQUIRED=1 → protected routes require a valid key (401 no key / 403 low role); unset → LOCAL_PRINCIPAL so the single-operator dashboard keeps working, still audited as actor "local". Honest and documented: production sets the flag.
+- Applied guard() + audit() to the 4 highest-risk MUTATION routes: approvals PATCH (decide, ADMIN — human authority), company POST (create pipeline+spend, ADMIN), operator PATCH (tick/pause, ADMIN), feedback POST (ingest, MEMBER/product key). Reads left open so the dashboard survives in every mode. Existing tests unaffected (they call modules directly, not routes).
+- API /api/genesis/auth: GET status/?me/?audit(ADMIN); POST bootstrap / createKey(ADMIN, can't mint OWNER via API). Fixed a brittleness: bare ?me/?audit flags now use searchParams.has (get returned "" → fell through).
+- Tests (6): bootstrap once + refuse twice; authenticate valid/garbage/null/revoked; guard local mode (missing key allowed, key honoured); guard enforced (401 no key, 403 low role, ok sufficient); audit writes actor identity (user + "local"); GATED ROUTE end-to-end via the real approvals PATCH handler — 401 unauth, 200 with ADMIN key, decision audited.
+
+Verification: tsc 0 errors; eslint 0 errors; 111/111 tests (was 105); next build compiles /api/genesis/auth. LIVE (dev server with GENESIS_AUTH_REQUIRED=1, from real path): status provisioned:false/enforcement:REQUIRED → gated tick NO key 401 → bootstrap OWNER key gk_effb5e31… → gated tick WITH key 200 → READ no key 200 (reads open, dashboard survives) → VIEWER key on ADMIN route 403 → audit endpoint 401 without key. Auth rows wiped after so the committed DB stays unprovisioned. (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: production auth in place (set the flag + bootstrap). Remaining (queued, non-blocking): mechanical guard rollout to the other write routes (v4/dispatch, orchestrator/dispatch, prompts, custom-tools, sandboxes, seed) + optional per-org usage limits; gate reads in production by extending guard to GET. Next feature-ranked: G1 World Scanner (needs key) → G6 Agent Arena → G7 evolution → G3/G8. Highest value-per-effort cross-cutting: exercise the LLM path.
+
+Commit: cycle 15 committed on branch v6-intelligence-layers.

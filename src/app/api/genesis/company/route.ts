@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createCompany } from "@/lib/genesis/agent-runtime/pipeline/company";
+import { guard, audit } from "@/lib/genesis/agent-runtime/auth";
 
 /** GET /api/genesis/company — venture pipeline runs.
  *  ?limit=20  ?status=BUILT|PLANNED|HALTED_NO_GO|FAILED  ?id=RUN-000001
@@ -24,10 +25,14 @@ export async function GET(req: NextRequest) {
  *  background (default true when build) returns a runId immediately; poll GET ?id=.
  */
 export async function POST(req: NextRequest) {
+  // Launching an autonomous build+spend pipeline requires ADMIN when enforced.
+  const g = await guard(req.headers.get("authorization"), "ADMIN");
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
   const body = await req.json().catch(() => ({}));
   const { focus, opportunityId, personaCount, build, background, projectId } = body as {
     focus?: string; opportunityId?: string; personaCount?: number; build?: boolean; background?: boolean; projectId?: string;
   };
+  await audit(g.principal, "COMPANY_CREATE", opportunityId ?? focus ?? "auto-discover");
   const opts = { focus, opportunityId, personaCount, build, projectId };
   // A full build can take minutes — default to background for build runs.
   if (background ?? build !== false) {
