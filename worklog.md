@@ -467,3 +467,25 @@ Verification: tsc 0 errors; eslint 0 errors; 138/138 tests (was 132); next build
 Re-audit: 12/13 V8 gaps closed. Only G1 World Scanner remains and it genuinely needs a browser/search key. Highest value-per-effort remaining: exercise the LLM path (turns every heuristic gate into real reasoning + enables real scanning) + DEGRADED badge; then guard rollout + G11 plugin perf tracking.
 
 Commit: cycle 19 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 23
+Agent: Claude Code (Opus 4.8) — V8 cycle 20: World Scanner Engine (G1) — V8 COMPLETE
+
+Task: Close the final V8 gap. Genesis discovers problems without a human idea.
+
+Work Log:
+- Honest reframing: real web scanning of market shifts/trends needs a search key (browser tool is a no-op without one). What Genesis CAN scan with no external key is its OWN accumulated real intelligence — so the World Scanner mines: REALITY (deployed-product signals from G9 — errors/negative-feedback/feature-requests = customer complaints/community pain), MARKET_GAP (marketplace demand gaps from G8 — unserved industries = business problems, only when coverage exists), FAILED_VENTURE (killed opportunities clustered by market = markets that resist solutions). WEB optional when a provider key is present (honest NO_WEB mode label otherwise).
+- WorldProblem model (statement, category, whoSuffers, frequency, urgency, currentAlternatives, evidence, sourceCount, truthScore, opportunityScore, dataSource, status, opportunityId).
+- world-scanner module: scanWorld() aggregates the 3 real internal sources → clusters/grades each (frequency from real counts, urgency from severity, who-suffers from productKey/industry/market), AEGIS-asserts each problem's claim with its real evidence (USER-typed reality weight 0.5, MEMORY failed-venture 0.4, COMPUTED market-gap 0.2 → truthScore reflects grounding; computed gaps stay weak), opportunityScore = clamp(freq*8 + urgencyBonus + min(sources,5)*5 + truth*0.2), persists, ranks. promoteToOpportunity(id) → creates a trackable Opportunity from a discovered problem (feeds the existing pipeline) + marks PROMOTED (idempotent).
+- API /api/genesis/world (GET WORLD_PROBLEM_GRAPH; POST scan|promote — MEMBER-gated + audit). Dashboard: World Scanner panel at the TOP of the Venture Intelligence tab (discovery → pipeline flow) with dataSource/urgency/truth/opportunity per problem.
+- Honesty: problems come ONLY from real internal signals (or real web when keyed) — never invented; praise/positive feedback is never a problem; no-signals ⇒ few/no problems; every problem AEGIS-graded so a computed gap can't pose as a witnessed reality problem; dataSource labelled.
+- Tests (6): REALITY problem clustered from error signals (freq=count, urgency HIGH); AEGIS verification (real→supported, claim row exists); opportunityScore rises with frequency+urgency; FAILED_VENTURE from repeatedly-killed opps; promote → Opportunity (idempotent, source links back); honesty (positive feedback never becomes a problem).
+
+Verification: tsc 0 errors; eslint 0 errors; 144/144 tests (was 138); next build compiles /api/genesis/world. ACCEPTANCE E2E (World Signals → AEGIS → Venture → Customer, no human idea): seeded real reality (4 errors co-notesapp + 3 feature-requests co-crmlite) + a killed venture → scanWorld (mode NO_WEB) discovered 3 problems: WP REALITY/HIGH opp 87 truth 50% ×4 (top, most-witnessed), REALITY/MEDIUM opp 63, FAILED_VENTURE opp 31 truth 17% (weak, honest) → promoted top → OPP-000005 → VENTURE 68 WATCH (truth CONTESTED) + CUSTOMER 64.4% buy reality 77. (bun run build standalone cp still fails on the junction — pre-existing.)
+
+*** V8 COMPLETE: 13/13 gaps closed (G0-G13). *** The full autonomous loop runs and feeds back: World Scanner → AEGIS → Venture → Customer → Boardroom → Build → Operate → Acquire(approval-gated) → Reality Feedback → Evolution → Arena → Demand → Marketplace → (gaps+signals feed World Scanner). All honest — heuristic/simulation/computed labels throughout, no fabricated users/revenue/demand.
+
+Re-audit: remaining work is force-multipliers/hardening, not gaps. Highest value-per-effort: exercise the LLM path (one key upgrades every gate + activates real web scanning) + DEGRADED badge; then guard rollout + usage limits; G11 plugin perf tracking; standalone-build/junction env debt.
+
+Commit: cycle 20 committed on branch v6-intelligence-layers.

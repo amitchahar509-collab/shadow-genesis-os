@@ -720,6 +720,29 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — WORLD SCANNER (G1): discover problems from real accumulated intelligence ============
+model WorldProblem {
+  id                  String   @id @default(cuid())
+  problemId           String   @unique // WP-000001
+  statement           String
+  category            String   @default("")
+  whoSuffers          String   @default("") // industry / product / segment that feels it
+  frequency           Int      @default(1) // how many real signals/occurrences back it
+  urgency             String   @default("MEDIUM") // LOW | MEDIUM | HIGH
+  currentAlternatives String   @default("[]") // JSON string[]
+  evidence            String   @default("[]") // JSON [{source, detail, type}] — real provenance
+  sourceCount         Int      @default(0)
+  truthScore          Float    @default(0) // AEGIS grounding
+  opportunityScore    Float    @default(0) // 0-100 composite
+  dataSource          String   @default("REALITY") // REALITY | MARKET_GAP | FAILED_VENTURE | WEB
+  status              String   @default("DISCOVERED") // DISCOVERED | PROMOTED
+  opportunityId       String? // set when promoted into the build pipeline
+  createdAt           DateTime @default(now())
+
+  @@index([dataSource])
+  @@index([status])
+}
+
 // ============ V8 — APP DEMAND MARKETPLACE (G8): match apps ↔ demand (network effect) ============
 model MarketplaceApp {
   id               String   @id @default(cuid())

@@ -12,6 +12,7 @@ import { BenchmarkArena } from "./benchmark-arena";
 import { AgentArena } from "./arena";
 import { DemandGraph } from "./demand";
 import { Marketplace } from "./marketplace";
+import { WorldScanner } from "./world-scanner";
 
 interface VentureRun {
   runId: string; status: string; focus: string | null; opportunityTitle: string | null;
@@ -71,6 +72,9 @@ export function VentureIntelligence() {
 
   return (
     <div className="space-y-4">
+      {/* ===== World scanner (discovery) ===== */}
+      <WorldScanner />
+
       {/* ===== Autonomous pipeline runs ===== */}
       <HudPanel
         title="Autonomous Venture Pipeline"

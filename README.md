@@ -175,6 +175,14 @@ curl -X POST http://localhost:3000/api/genesis/marketplace \
 curl "http://localhost:3000/api/genesis/marketplace?match=I%20need%20help%20with%20invoicing"   # problem → apps
 curl "http://localhost:3000/api/genesis/marketplace?stats=1"   # coverage + demand gaps (opportunity signals)
 
+# World Scanner — discover problems from Genesis's own accumulated reality (feedback signals, demand gaps, failed ventures)
+curl -X POST http://localhost:3000/api/genesis/world \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" -d '{"action":"scan"}'
+curl "http://localhost:3000/api/genesis/world?limit=10"   # the WORLD_PROBLEM_GRAPH (opportunity-scored)
+# promote a discovered problem into the build pipeline:
+curl -X POST http://localhost:3000/api/genesis/world \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" -d '{"action":"promote","problemId":"WP-000001"}'
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 
