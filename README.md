@@ -114,6 +114,14 @@ curl -X PATCH http://localhost:3000/api/genesis/approvals \
   -H "Content-Type: application/json" \
   -d '{"requestId":"APR-000001","approve":true,"decidedBy":"you@example.com"}'   # approvals are single-use
 
+# Long-Horizon Operator — operate companies for 30/60/90 days (tick-driven; point a cron at tickAll)
+curl -X POST http://localhost:3000/api/genesis/operator \
+  -H "Content-Type: application/json" \
+  -d '{"goal":"Operate: my product","horizonDays":30}'
+curl -X PATCH http://localhost:3000/api/genesis/operator \
+  -H "Content-Type: application/json" \
+  -d '{"action":"tickAll"}'   # runs due DAILY/WEEKLY/MONTHLY reviews on every active mission
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

@@ -700,6 +700,46 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — LONG-HORIZON OPERATOR (G5): operate companies for 30/60/90 days ============
+model LongMission {
+  id              String    @id @default(cuid())
+  missionId       String    @unique // LM-000001
+  goal            String
+  companyKey      String? // Company being operated
+  opportunityId   String? // opportunity the company was built on (weekly venture re-checks)
+  horizonDays     Int       @default(30) // 30 | 60 | 90
+  status          String    @default("ACTIVE") // ACTIVE | PAUSED | COMPLETED | KILLED
+  startedAt       DateTime  @default(now())
+  endsAt          DateTime
+  lastDailyAt     DateTime?
+  lastWeeklyAt    DateTime?
+  lastMonthlyAt   DateTime?
+  monthlyDecision String? // SCALE | PIVOT | KILL | DOUBLE_DOWN (latest)
+  metrics         String    @default("{}") // JSON rolling state (lastVentureScore, taskCounts…)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  reviews         OperatorReview[]
+
+  @@index([status])
+}
+
+model OperatorReview {
+  id        String   @id @default(cuid())
+  reviewId  String   @unique // REV-000001
+  missionId String
+  kind      String  // DAILY | WEEKLY | MONTHLY | FINAL
+  asOf      DateTime // the tick time this review covered (injectable in tests — recorded honestly)
+  summary   String
+  findings  String   @default("[]") // JSON string[] — problems detected from real rows
+  actions   String   @default("[]") // JSON string[] — taskIds created / decisions taken
+  metrics   String   @default("{}") // JSON snapshot of the real numbers reviewed
+  decision  String? // MONTHLY only: SCALE | PIVOT | KILL | DOUBLE_DOWN
+  createdAt DateTime @default(now())
+  mission   LongMission @relation(fields: [missionId], references: [missionId], onDelete: Cascade)
+
+  @@index([missionId])
+}
+
 // ============ V8 — INTEGRATED AUTONOMOUS PIPELINE (G0): discover → evidence → venture → customers → board → build ============
 model VentureRun {
   id                   String   @id @default(cuid())

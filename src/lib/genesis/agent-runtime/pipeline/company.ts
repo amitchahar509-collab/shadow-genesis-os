@@ -33,6 +33,8 @@ export interface CreateCompanyOptions {
   build?: boolean;
   /** Halt on a board NO_GO (default true). */
   enforceBoard?: boolean;
+  /** After a successful build, start a long-horizon operating mission (default 30 days; 0 disables). */
+  operateDays?: 0 | 30 | 60 | 90;
   projectId?: string;
 }
 
@@ -164,6 +166,12 @@ export async function createCompany(opts: CreateCompanyOptions = {}): Promise<Co
         build = await dispatchGoal(`Build an MVP for: ${opp.title} — ${opp.problem}`, { projectId: opts.projectId, board: false });
         status = "BUILT";
         log("BUILD", t0, build.summary);
+        // Hand off to the Long-Horizon Operator: Build → Operate (default 30 days).
+        if (opts.operateDays !== 0) {
+          const { startLongMission } = await import("../operator");
+          const mission = await startLongMission({ goal: `Operate: ${opp.title}`, companyKey, opportunityId: opp.opportunityId, horizonDays: opts.operateDays ?? 30 });
+          log("OPERATE", t0, `long mission ${mission.missionId} started (${mission.horizonDays} days)`);
+        }
       } else {
         status = "PLANNED";
       }

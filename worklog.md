@@ -238,3 +238,28 @@ Verification: tsc 0 errors; eslint 0 errors; 78/78 tests (was 70); next build co
 Re-audit: next ranked G5 Long-Horizon Operator ("operate 90 days" — last pipeline leg with no machinery) → G4 Acquisition loop (now unblocked by this safety layer) → G1 World Scanner upgrade → G13 dashboard UI.
 
 Commit: cycle 9 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 13
+Agent: Claude Code (Fable 5) — V8 cycle 10: Long-Horizon Operator (G5)
+
+Task: Close V8 Gap 5 — operate companies for 30/60/90 days. Last leg of the directive's final pipeline (Build → Operate → Learn).
+
+Work Log:
+- Architecture decision: tick-driven over persisted state (LongMission + OperatorReview), NOT an in-process daemon — restart-safe by construction; ticks come from API/cron (PATCH /api/genesis/operator {action:"tickAll"}). Time is injectable (opts.now) for tests/simulation and recorded honestly as asOf on every review so simulated time can't masquerade as wall-clock history.
+- operator module (agent-runtime/operator/index.ts): startLongMission (30/60/90d, endsAt computed), tick(missionId, {now?}) computes due loops from real timestamps:
+  * DAILY — real metrics since last daily (AgentExecution counts/failures, FAILED tasks, approvals pending >24h). Failures spawn a real corrective GenesisTask for QUALITY (reuses nextTaskNumber). Findings/actions/metrics persisted per review.
+  * WEEKLY — re-runs the VENTURE agent on the mission's opportunity; flags score drift (±10) vs mission state; updates lastVentureScore.
+  * MONTHLY — conveneBoard over real trend numbers (elapsed days, done/failed tasks, lastVentureScore, opportunity signals) → SCALE (GO) / DOUBLE_DOWN (GO ≥75%) / PIVOT (CONDITIONAL) / KILL (NO_GO). KILL → mission KILLED + company PAUSED. Memory record per decision.
+  * FINAL — horizon reached → closing review + COMPLETED (suppressed if the same tick's monthly killed).
+  tickAll() advances every ACTIVE mission. pause/resume via API.
+- Pipeline handoff: createCompany BUILT → startLongMission automatically (operateDays default 30; 0 disables) — the directive's Build → Operate flow. Stage log gains OPERATE entry.
+- Fix found in e2e: FINAL summary read monthlyDecision from the stale mission snapshot when monthly+final fired in one tick → carried latestDecision through.
+- API /api/genesis/operator: GET missions (+reviews by id), POST start, PATCH tick/tickAll/pause/resume (now param documented as simulation-only).
+- Tests (8): horizon/endsAt; daily baseline + same-day no-op + next-day daily; failures → findings + QUALITY task; +7d weekly with real venture score recorded and mission state updated; +30d monthly healthy → SCALE/PIVOT/DOUBLE_DOWN (never KILL on strong signals); weak trend → board NO_GO → KILL + company PAUSED; FINAL isolated at horizon with asOf recorded; PAUSED missions don't advance.
+
+Verification: tsc 0 errors; eslint 0 errors; 86/86 tests (was 78); next build compiles /api/genesis/operator. FULL-LIFE E2E (real execution): createCompany (no idea) → BUILT (board CONDITIONAL 58%) → LM-000002 auto-started (30d) → ticks at day 0.1/1.2/7.3/14.5/30.5 → 10 reviews (6 DAILY, 3 WEEKLY with real venture 58/100 re-runs, 1 MONTHLY: board CONDITIONAL 62% → PIVOT, 1 FINAL) → COMPLETED. (bun run build standalone cp still fails on the Windows junction — pre-existing.)
+
+Re-audit: final pipeline now runs end-to-end (discover → evidence → venture → customers → board → build → operate → learn). Next ranked: G4 Acquisition loop (operate phase watches but doesn't grow; external experiments route through the G2 approval queue) → G13 dashboard UI (six intelligence systems are API-only) → G1 World Scanner upgrade → G12 Benchmark Arena.
+
+Commit: cycle 10 committed on branch v6-intelligence-layers.
