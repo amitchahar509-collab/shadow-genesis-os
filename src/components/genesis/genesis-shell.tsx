@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Radar,
   Repeat,
+  Scale,
   ShieldCheck,
   Terminal,
   TriangleAlert,
@@ -24,9 +25,13 @@ import { Departments } from "./sections/departments";
 import { MemoryBanks } from "./sections/memory-banks";
 import { OperationalLoops } from "./sections/operational-loops";
 import { GenesisStateView } from "./sections/genesis-state";
+import { VentureIntelligence } from "./sections/venture-intelligence";
+import { MissionControl } from "./sections/mission-control";
 
 type TabKey =
   | "command"
+  | "venture"
+  | "control"
   | "tasks"
   | "departments"
   | "memory"
@@ -35,6 +40,8 @@ type TabKey =
 
 const NAV: { key: TabKey; label: string; icon: React.ReactNode; desc: string }[] = [
   { key: "command", label: "Command Center", icon: <LayoutDashboard className="w-3.5 h-3.5" />, desc: "overview" },
+  { key: "venture", label: "Venture Intelligence", icon: <Scale className="w-3.5 h-3.5" />, desc: "pipeline · gates" },
+  { key: "control", label: "Mission Control", icon: <ShieldCheck className="w-3.5 h-3.5" />, desc: "approvals · missions" },
   { key: "tasks", label: "Task Graph", icon: <Boxes className="w-3.5 h-3.5" />, desc: "execution" },
   { key: "departments", label: "Departments", icon: <Cpu className="w-3.5 h-3.5" />, desc: "agents" },
   { key: "memory", label: "Memory Banks", icon: <Database className="w-3.5 h-3.5" />, desc: "knowledge" },
@@ -230,6 +237,8 @@ export function GenesisShell() {
           ) : summary ? (
             <div className="p-3 sm:p-5 space-y-4">
               {tab === "command" && <CommandCenter summary={summary} onRefresh={loadSummary} />}
+              {tab === "venture" && <VentureIntelligence />}
+              {tab === "control" && <MissionControl />}
               {tab === "tasks" && <TaskGraph summary={summary} />}
               {tab === "departments" && <Departments summary={summary} />}
               {tab === "memory" && <MemoryBanks initial={[]} />}

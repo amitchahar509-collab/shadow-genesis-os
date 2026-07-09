@@ -286,3 +286,22 @@ Verification: tsc 0 errors; eslint 0 errors; 93/93 tests (was 86); next build co
 Re-audit: honest boundaries by design — channel execution + REAL experiment data both wait on the reality-feedback layer (G9). Next ranked: G13 dashboard UI ("no hidden systems" — seven intelligence systems are API-only) → G12 Benchmark Arena → G1 World Scanner (needs key) → G9 Reality Feedback → G10 SaaS.
 
 Commit: cycle 11 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 15
+Agent: Claude Code (Fable 5) — V8 cycle 12: Dashboard UI for the intelligence stack (G13)
+
+Task: Close V8 G13 — "no hidden systems." Eight intelligence systems (pipeline, AEGIS, venture, customer sim, boardroom, approvals, operator, acquisition) were API-only.
+
+Work Log:
+- Two new dashboard sections following the existing HudPanel/Chip/GenesisProgress conventions:
+  * sections/venture-intelligence.tsx — "Venture Intelligence" tab: VentureRun pipeline table (venture/truth/customer/board gate scores per run, outcome + mode chips), plus four gate panels (AEGIS claims with support/contradict counts, venture analyses with score bars, customer sims explicitly chipped SIMULATION, board decisions with tally + synthesis). CREATE COMPANY (no idea) button → POST /api/genesis/company (background). Honesty legend: amber = heuristic/simulated, never presented as real data.
+  * sections/mission-control.tsx — "Mission Control" tab: Approval Control Center queue with APPROVE/REJECT buttons (PATCH /api/genesis/approvals, decidedBy "dashboard-operator"), risk scores + transparent factors; long-mission list with horizon progress bars + TICK ALL button (PATCH operator tickAll); acquisition experiment memory with kind/status/dataSource chips + learnings.
+- Wired into the ACTIVE dashboard (genesis-dashboard.tsx — discovered the root page renders GenesisDashboard, not GenesisShell; wired both, shell kept consistent).
+- Environment finding (documented): Next 16 dev breaks when launched via the Downloads NTFS junction — doubled-path ENOENT (C:\...\shadow OS\D:\...\D:\...\routes-manifest.json). Tried turbopack.root pin — the bug is in Next's server layer, not Turbopack; reverted. Workaround: run dev from D:\shadow-os-dev\project directly (works, root 200). The preview tool spawns via the junction so browser screenshots were not possible; verification done against the real-path dev server instead.
+
+Verification: tsc 0 errors; eslint 0 errors; 93/93 tests; next build compiles (58→65 routes incl. all new ones). REAL EXECUTION against the live dev server (from D:): SSR HTML renders both new tabs; all 7 section APIs return live rows (runs/claims/analyses/sims/boards/approvals/missions/experiments); the exact APPROVE-button request path exercised (seeded APR-000001 risk 75 → APPROVED by dashboard-operator, single-use enforced); TICK ALL path exercised ({"results":[]} — no active missions, correct).
+
+Re-audit: "no hidden systems" closed. Next ranked: G12 Benchmark Arena (Genesis still doesn't score itself) → G9 Reality Feedback (unlocks REAL measurements + channel execution) → G1 World Scanner (needs key) → G10 SaaS/auth → G6/G7 arena + evolution.
+
+Commit: cycle 12 committed on branch v6-intelligence-layers.

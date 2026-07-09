@@ -18,16 +18,21 @@ import {
   Bot,
   CheckCircle2,
   Gauge,
+  Scale,
   Server,
   Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LiveClock, UptimeCounter, Chip } from "./primitives";
 import { ActivityFeed } from "./activity-feed";
+import { VentureIntelligence } from "./sections/venture-intelligence";
+import { MissionControl } from "./sections/mission-control";
 import { useToast } from "@/hooks/use-toast";
 
 type TabKey =
   | "command"
+  | "venture"
+  | "control"
   | "missions"
   | "agents"
   | "tasks"
@@ -40,6 +45,8 @@ type TabKey =
 
 const NAV: { key: TabKey; label: string; icon: React.ReactNode; desc: string }[] = [
   { key: "command", label: "Command Center", icon: <LayoutDashboard className="w-3.5 h-3.5" />, desc: "overview" },
+  { key: "venture", label: "Venture Intelligence", icon: <Scale className="w-3.5 h-3.5" />, desc: "pipeline · gates" },
+  { key: "control", label: "Mission Control", icon: <ShieldCheck className="w-3.5 h-3.5" />, desc: "approvals · operator" },
   { key: "missions", label: "Missions", icon: <Rocket className="w-3.5 h-3.5" />, desc: "autonomous" },
   { key: "agents", label: "Agents", icon: <Bot className="w-3.5 h-3.5" />, desc: "13 agents" },
   { key: "tasks", label: "Tasks", icon: <Boxes className="w-3.5 h-3.5" />, desc: "execution" },
@@ -190,6 +197,8 @@ export function GenesisDashboard() {
           {!loading && !error && (
             <>
               {tab === "command" && <CommandCenter summary={summary} status={status} missions={missions} onRefresh={loadSummary} />}
+              {tab === "venture" && <VentureIntelligence />}
+              {tab === "control" && <MissionControl />}
               {tab === "missions" && <MissionsView missions={missions} onRefresh={loadMissions} />}
               {tab === "agents" && <AgentsView />}
               {tab === "tasks" && <TasksView summary={summary} />}
