@@ -135,6 +135,13 @@ curl -X POST http://localhost:3000/api/genesis/benchmark \
   -d '{"suite":"intelligence","background":false}'   # → autonomyScore + per-capability pass/score
 curl "http://localhost:3000/api/genesis/benchmark?trend=1"   # score trend over time
 
+# Reality Feedback — deployed products report REAL telemetry; Genesis reacts (tasks/metrics/closed experiments)
+curl -X POST http://localhost:3000/api/genesis/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"ERROR","productKey":"co-myapp","source":"sentry","detail":"crash on export"}'   # → CRITICAL QUALITY task
+# CONVERSION with a subject closes that opportunity's approved channel experiment with REAL data:
+#   -d '{"kind":"CONVERSION","productKey":"co-myapp","source":"utm","detail":"reddit launch","subject":"OPP-000001","payload":{"conversions":37,"visitors":920}}'
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

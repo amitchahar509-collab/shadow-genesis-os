@@ -6,12 +6,13 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, ClipboardCheck, FlaskConical, Hourglass, Repeat, ShieldAlert, X } from "lucide-react";
+import { Check, ClipboardCheck, FlaskConical, Hourglass, Radio, Repeat, ShieldAlert, X } from "lucide-react";
 import { Chip, GenesisProgress, HudPanel } from "../primitives";
 
 interface Approval { requestId: string; agent: string; actionType: string; description: string; riskScore: number; riskFactors: string[]; status: string; requestedAt: string }
 interface Mission { missionId: string; goal: string; horizonDays: number; status: string; monthlyDecision: string | null; startedAt: string; endsAt: string }
 interface Experiment { experimentId: string | null; subject: string | null; kind: string; status: string; dataSource: string; learning: string | null; nextAction: string | null }
+interface Signal { signalId: string; kind: string; impact: string; productKey: string; source: string; generated: { kind: string; id: string }[]; payload: { detail?: string }; createdAt: string }
 
 const statusChip = (s: string): "emerald" | "amber" | "rose" | "cyan" | "zinc" =>
   s === "APPROVED" || s === "EXECUTED" || s === "LEARNED" || s === "COMPLETED" || s === "ACTIVE" ? "emerald"
@@ -24,20 +25,23 @@ export function MissionControl() {
   const [pending, setPending] = useState(0);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [signals, setSignals] = useState<Signal[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [ticking, setTicking] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [a, m, e] = await Promise.all([
+      const [a, m, e, f] = await Promise.all([
         fetch("/api/genesis/approvals?limit=25").then((x) => x.json()),
         fetch("/api/genesis/operator?limit=10").then((x) => x.json()),
         fetch("/api/genesis/acquisition?limit=15").then((x) => x.json()),
+        fetch("/api/genesis/feedback?limit=15").then((x) => x.json()),
       ]);
       setApprovals(a.requests ?? []);
       setPending(a.pending ?? 0);
       setMissions(m.missions ?? []);
       setExperiments(e.experiments ?? []);
+      setSignals(f.signals ?? []);
     } catch { /* panels render empty */ }
   }, []);
 
@@ -176,8 +180,31 @@ export function MissionControl() {
         </HudPanel>
       </div>
 
+      {/* ===== Reality Feedback Brain ===== */}
+      <HudPanel
+        title="Reality Feedback"
+        subtitle="deployed products report REAL telemetry → tasks · metrics · closed experiments"
+        icon={<Radio className="w-3.5 h-3.5" />}
+        accent="emerald"
+      >
+        {signals.length === 0 ? <Empty text="no product signals yet — deployed apps POST to /api/genesis/feedback" /> : (
+          <ul className="space-y-2">
+            {signals.map((s) => (
+              <li key={s.signalId} className="font-mono text-[10px] text-zinc-300 flex items-center gap-2 flex-wrap">
+                <span className="text-emerald-400">{s.signalId}</span>
+                <Chip variant="emerald">REAL</Chip>
+                <Chip variant={s.impact === "NEGATIVE" ? "rose" : s.impact === "POSITIVE" ? "emerald" : "zinc"}>{s.kind}</Chip>
+                <span className="text-zinc-500">{s.productKey}</span>
+                <span className="flex-1 truncate" title={s.payload?.detail}>{s.payload?.detail}</span>
+                {s.generated?.length > 0 && <span className="text-cyan-400 shrink-0">→ {s.generated.map((g) => `${g.kind} ${g.id}`).join(", ")}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </HudPanel>
+
       <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-wider text-zinc-600">
-        <ClipboardCheck className="w-3 h-3" /> approvals are single-use · rejected actions never run · auto-refreshes every 15s
+        <ClipboardCheck className="w-3 h-3" /> approvals are single-use · rejected actions never run · REAL = external product telemetry (never fabricated) · auto-refreshes every 15s
       </div>
     </div>
   );

@@ -330,3 +330,28 @@ Verification: tsc 0 errors; eslint 0 errors; 98/98 tests (was 93); next build co
 Re-audit: last self-measurement gap closed. Next ranked: G9 Reality Feedback (unlocks REAL experiment data + channel execution — closes the outer learning loop) → G10 SaaS/auth (top production blocker) → G1 World Scanner (needs key) → G6/G7/G3/G8.
 
 Commit: cycle 13 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 17
+Agent: Claude Code (Opus 4.8) — V8 cycle 14: Reality Feedback Brain (G9)
+
+Task: Close V8 Gap 10/G9 — products must teach Genesis. The existing v4/reality route stored RealitySignals passively (actedOn never set true); nothing processed them. This is the outer learning loop + the layer that closes the acquisition engine's two designed honesty boundaries (REAL experiment data + channel execution).
+
+Work Log:
+- Reused/extended RealitySignal additively (no new table): signalId (RS- unique), kind (ERROR|FEEDBACK|FEATURE_REQUEST|USAGE|RETENTION|CONVERSION), productKey (external origin), subject (loop linkage), generated (JSON of produced ids), processedAt. Legacy v4/reality rows keep defaults.
+- reality-feedback module (agent-runtime/reality-feedback/index.ts): ingestSignal → persist → react by kind:
+  * ERROR/FAILURE → CRITICAL QUALITY GenesisTask.
+  * FEEDBACK negative → HIGH ENGINEERING task (positive praise → no task).
+  * FEATURE_REQUEST → MEDIUM GROWTH backlog task.
+  * USAGE/RETENTION → real GrowthMetric (now legitimately REAL telemetry, not simulated).
+  * CONVERSION → completeChannelExperiment(): finds the subject's AWAITING_EXECUTION acquisition CHANNEL experiment and moves it to LEARNED with dataSource=REAL + a [REAL] learning (conversions/visitors → rate). THIS closes the boundary cycle 11 deliberately left open.
+  Every signal → EPISODIC memory (Products → Genesis Memory), actedOn=true, generated logged. processPending() re-processes unacted signals (crash recovery).
+- Honesty: REAL is the one label the rules permit here because signals originate OUTSIDE Genesis's reasoning (external product callback). Genesis never fabricates usage — empty when no product reports. In e2e/tests the caller plays the product, which is exactly the ingestion contract.
+- API /api/genesis/feedback: POST ingest+react, GET signals+generated (subject/kind/actedOn filters, pending count), PATCH processPending. Dashboard: Reality Feedback panel added to Mission Control (signals with REAL chip, kind/impact, product, generated ids).
+- Tests (7): ERROR→CRITICAL QUALITY task + acted-on; neg FEEDBACK→ENGINEERING, positive→no task; FEATURE_REQUEST→GROWTH; USAGE/RETENTION→GrowthMetric; every signal→memory; CONVERSION closes AWAITING_EXECUTION channel → LEARNED/REAL (24/800=3%); processPending re-processes orphan.
+
+Verification: tsc 0 errors; eslint 0 errors; 105/105 tests (was 98); next build compiles /api/genesis/feedback. FULL-LOOP E2E (real execution): seeded opp → acquisition ladder to CHANNEL (AWAITING_APPROVAL) → human approves → AWAITING_EXECUTION (dataSource NONE, no fabricated results) → product reports ERROR (→ T-112 CRITICAL QUALITY) + CONVERSION 37/920 → channel experiment LEARNED, dataSource REAL, learning "[REAL] ... 37/920 converted (4%). First real conversion data." Live API: POST feedback → RS-000001 NEGATIVE → T-112; GET feedback returns it with generated ids. UI panel compiles/lints/mounts (browser-pixel render still blocked by junction; verified via real-path server + data path). (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: outer learning loop closed; both acquisition honesty boundaries now crossable with genuine data. Next ranked: G10 SaaS/auth (top production blocker — every route open incl. approval + feedback write endpoints) → G1 World Scanner (needs key) → G6 Agent Arena → G7 evolution → G3/G8. Also: exercise the LLM path (one key lifts every heuristic gate + benchmark).
+
+Commit: cycle 14 committed on branch v6-intelligence-layers.

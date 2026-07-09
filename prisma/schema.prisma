@@ -524,6 +524,16 @@ model RealitySignal {
   impact      String   @default("UNKNOWN") // POSITIVE | NEUTRAL | NEGATIVE
   actedOn     Boolean  @default(false)
   createdAt   DateTime @default(now())
+  // V8 G9 — Reality Feedback Brain (additive; legacy v4/reality rows keep defaults)
+  signalId    String?  @unique // RS-000001
+  kind        String   @default("USAGE") // ERROR | FEEDBACK | FEATURE_REQUEST | USAGE | RETENTION | CONVERSION
+  productKey  String? // which deployed product/company reported this — REAL external origin
+  subject     String? // opportunityId | companyKey — links a signal to the acquisition/operator loop
+  generated   String   @default("[]") // JSON: {kind,id} of tasks/experiments/metrics this signal produced
+  processedAt DateTime?
+
+  @@index([subject])
+  @@index([actedOn])
 }
 
 // ============ V4 — SELF AUDIT (Phase 14) ============
