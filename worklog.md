@@ -395,3 +395,28 @@ Verification: tsc 0 errors; eslint 0 errors; 117/117 tests (was 111); next build
 Re-audit: next ranked G7 evolution completion (now has the arena learning substrate + AgentMetric to consume) → guard rollout to remaining write routes → G1 World Scanner (needs key) → G3/G8. Cross-cutting highest-value: exercise the LLM path (turns the 3 teams' heuristic bets into real reasoning).
 
 Commit: cycle 16 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 20
+Agent: Claude Code (Opus 4.8) — V8 cycle 17: Agent Evolution Engine completion (G7)
+
+Task: Complete the improvement system — agents measure performance, learn failures, improve prompts, retire weak workflows, create specialists. The pieces existed (metrics, prompt-versioning, failure analysis, AgentTemplate, arena learnings); the ENGINE that ties them did not.
+
+Work Log:
+- Phase 0 audit: confirmed reusable substrate — computeAgentMetrics (successRate/errors/durations from AgentExecution), prompt-versioning (setPrompt/rollback/getActivePrompt/listVersions + PromptVersion), analyzer→FailureAnalysis (recurring/occurrences), AgentTemplate (specialist specs), arena winning/failed-strategy memory. Missing = the decision engine.
+- EvolutionAction model (actionId, agent, kind, reason, metrics snapshot, applied, detail).
+- evolution module (agent-runtime/evolution/index.ts): evaluateAgent (read-only: real metrics + recurring FailureAnalysis); evolveAgent decides ONE action by real thresholds (MIN_SAMPLES 3, HEALTHY 0.8, RETIRE 0.34, SPECIALIST_OCC 4):
+  * insufficient data / healthy → NO_ACTION.
+  * catastrophic (sr<0.34) → RETIRE_WORKFLOW: rollback(agent) activates the prior prompt version (retire the bad workflow); if none, flag for human retirement.
+  * persistent recurring (top occurrences≥4) → CREATE_SPECIALIST: upsert an AgentTemplate scoped to the failure category (toolAllowlist from the base agent's real permissions); isBuiltin false — a spec/proposal, NOT a live agent (reason says so).
+  * middling + recurring → IMPROVE_PROMPT: append a corrective [EVOLUTION guard] to the active prompt via setPrompt (new active version).
+  apply flag (dry-run capable): NO_ACTION and apply:false record the decision but change nothing. evolveAll sweeps agents with recent executions (defaults to DRY RUN for safety).
+- API /api/genesis/evolution: GET history / ?evaluate=AGENT (read-only); PATCH evolveAll|evolveAgent (ADMIN via G10 guard + audit). Dashboard: Agent Evolution panel in Mission Control (action, kind, applied, agent, successRate/runs, reason, detail).
+- Honesty: every action driven by real AgentExecution + FailureAnalysis; no data ⇒ NO_ACTION; snapshot + reason stored; sweeps dry-run by default so a shared/prod DB isn't mutated accidentally.
+- Tests (8): NO_ACTION insufficient data; NO_ACTION healthy; RETIRE rolls active prompt v2→v1; IMPROVE creates a new prompt version containing the failure-category guard; CREATE_SPECIALIST proposes a non-builtin template; dry-run records but changes nothing; evolveAll carries metric snapshots; evaluateAgent is read-only (creates 0 actions).
+
+Verification: tsc 0 errors; eslint 0 errors; 125/125 tests (was 117); next build compiles /api/genesis/evolution. E2E (real execution): underperforming+recurring TOOL_ERROR → IMPROVE_PROMPT (prompt v2 with guard); catastrophic → RETIRE_WORKFLOW (rolled to v1); persistent TIMEOUT×6 → CREATE_SPECIALIST (template EVODEMO_C_TIMEOUT_SPECIALIST, builtin=false); evolveAll dry sweep over 12 real agents → 0 applied (all NO_ACTION — real agents healthy). (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: improvement loop closed. 10/13 V8 gaps done (G0/G2/G4/G5/G6/G7/G9/G10/G12/G13). Next ranked: G1 World Scanner upgrade (needs a browser key) → G3 Demand Graph / G8 Marketplace → guard rollout + usage limits → G11 plugin marketplace (evolution already writes AgentTemplate rows — natural feed). Cross-cutting highest-value: exercise the LLM path + DEGRADED provider badge.
+
+Commit: cycle 17 committed on branch v6-intelligence-layers.

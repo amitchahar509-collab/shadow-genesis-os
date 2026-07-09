@@ -156,6 +156,12 @@ curl -X POST http://localhost:3000/api/genesis/arena \
   -d '{"mission":"Create the best possible SaaS opportunity","background":false}'
 curl "http://localhost:3000/api/genesis/arena?limit=5"   # competitions, scored entries, winners
 
+# Agent Evolution — agents improve from real performance (prompt guards / rollbacks / specialist proposals)
+curl "http://localhost:3000/api/genesis/evolution?evaluate=ENGINEERING"   # read-only: metrics + recurring failures
+curl -X PATCH http://localhost:3000/api/genesis/evolution \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" \
+  -d '{"action":"evolveAll","apply":false}'   # dry-run sweep; apply:true to enact prompt changes
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

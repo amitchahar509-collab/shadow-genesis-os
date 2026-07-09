@@ -720,6 +720,22 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — AGENT EVOLUTION (G7): agents improve from real performance ============
+model EvolutionAction {
+  id        String   @id @default(cuid())
+  actionId  String   @unique // EVO-000001
+  agent     String
+  kind      String   // IMPROVE_PROMPT | RETIRE_WORKFLOW | CREATE_SPECIALIST | NO_ACTION
+  reason    String   // data-backed explanation
+  metrics   String   @default("{}") // JSON snapshot: successRate, executions, errorCount, avgMs
+  applied   Boolean  @default(false) // false = dry-run / recommendation only
+  detail    String   @default("") // what was done (new prompt version, template key, rollback…)
+  createdAt DateTime @default(now())
+
+  @@index([agent])
+  @@index([kind])
+}
+
 // ============ V8 — AGENT ARENA (G6): teams compete, a judge picks the winner ============
 model ArenaCompetition {
   id            String   @id @default(cuid())
