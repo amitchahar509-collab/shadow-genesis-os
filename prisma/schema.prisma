@@ -678,6 +678,32 @@ model CustomerSimulation {
   @@index([opportunityId])
 }
 
+// ============ V8 — INTEGRATED AUTONOMOUS PIPELINE (G0): discover → evidence → venture → customers → board → build ============
+model VentureRun {
+  id                   String   @id @default(cuid())
+  runId                String   @unique // RUN-000001
+  focus                String? // optional market focus; discovery still runs — never a prescribed idea
+  status               String   @default("RUNNING") // RUNNING | PLANNED | BUILT | HALTED_NO_GO | FAILED
+  stage                String   @default("DISCOVER") // last stage reached: DISCOVER | VENTURE | CUSTOMER | BOARD | BUILD
+  opportunityId        String?
+  opportunityTitle     String?
+  ventureScore         Float    @default(0)
+  ventureVerdict       String? // INVEST | WATCH | PASS
+  truthScore           Float    @default(0) // AEGIS aggregate for the opportunity subject
+  customerRealityScore Float    @default(0)
+  buyRate              Float    @default(0)
+  boardVerdict         String? // GO | CONDITIONAL | NO_GO
+  boardConfidence      Float    @default(0)
+  companyKey           String? // Company row created on a non-NO_GO verdict
+  buildSummary         String? // orchestrator pipeline summary when build ran
+  mode                 String   @default("HEURISTIC") // honesty: how the intelligence stages reasoned
+  stages               String   @default("[]") // JSON stage log: name, ms, summary, labels
+  artifactPath         String? // VENTURE_RUN.md
+  error                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
 model CustomerPersona {
   id               String   @id @default(cuid())
   personaId        String   @unique // CUST-000001

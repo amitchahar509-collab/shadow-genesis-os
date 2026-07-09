@@ -101,6 +101,13 @@ curl -X POST http://localhost:3000/api/genesis/customers \
   -H "Content-Type: application/json" \
   -d '{"goal":"AI invoicing for freelancers","context":{"potentialValue":8,"competition":4,"personaCount":300,"price":25}}'
 
+# CREATE A COMPANY — no idea required. Full autonomous pipeline:
+# DISCOVER → AEGIS evidence → VENTURE score → CUSTOMER simulation → BOARD debate → build gate
+curl -X POST http://localhost:3000/api/genesis/company \
+  -H "Content-Type: application/json" \
+  -d '{}'   # optionally: {"focus":"developer tools","build":false}
+curl http://localhost:3000/api/genesis/company   # poll run status
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

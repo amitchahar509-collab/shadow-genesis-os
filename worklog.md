@@ -201,3 +201,22 @@ Verification: tsc 0 errors; eslint 0 errors; 65/65 tests (was 59); next build co
 Self-improvement re-audit: the final pipeline now has every reality gate except automatic wiring. Next (V7_EXECUTION_BACKLOG): V2 wire VENTURE→AEGIS→CUSTOMER→BOARD into the CEO plan (makes the whole chain run on one "create a company" prompt — the completion condition) → V4 Approval Control Center → V11 exercise LLM → V7 auth.
 
 Commit: cycle 7 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 11
+Agent: Claude Code (Fable 5) — V8 cycle 8: Integrated Autonomous Pipeline (G0) + Phase 0 audit
+
+Task: V8 completion loop. Phase 0 truth audit, then close the biggest verified gap: nothing chained the reality gates into "create a company without an idea."
+
+Work Log:
+- Phase 0: V8_REALITY_REPORT.md (15 agents, 46 models, 62 routes, 65 tests measured; COMPLETE/PARTIAL/MISSING/FAKE/BROKEN/NEXT BOTTLENECK) + V8_COMPLETION_QUEUE.md (G0-G13 ranked with test methods + completion proofs).
+- G0 Integrated Autonomous Pipeline (pipeline/company.ts): createCompany() chains DISCOVER (OPPORTUNITY agent; optional focus or existing opportunityId — never a prescribed idea) → VENTURE (asserts AEGIS market claim internally) → CUSTOMER simulation (SIMULATION-labelled) → AEGIS verifySubject aggregate → BOARDROOM debate over the full quantified context (ventureScore, truthScore, customerRealityScore, buyRate, difficulty) → build gate: dispatchGoal MVP build only on GO/CONDITIONAL (board:false — already debated); NO_GO halts honestly. VentureRun model records stage log/scores/verdicts; Company row (existing model, reused) created on approval; VENTURE_RUN.md artifact; EPISODIC memory record. API GET/POST /api/genesis/company (background default for build runs; poll by runId).
+- Pure connection: zero new intelligence — the module only wires verified V4-V7 layers so every honesty label (HEURISTIC / SIMULATION / NO_WEB_EVIDENCE / UNSUPPORTED) carries into one artifact.
+- BUG FOUND & FIXED (via new tests): count()+1 id allocation in v6-venture (VC-), v7-customer (SIM-), v4-opportunity (OPP-) collided after any row deletion → P2002 → agent runs failed intermittently in the full suite. Replaced all three with numeric max-scan (same pattern as EX-/CLM-). Suite went 66/4-fail → 70/70 stable across 3 consecutive runs.
+- Tests: tests/agent-runtime/pipeline.test.ts (5) — weak opportunity → NO_GO halts before build (no Company row); strong evidence-backed → PLANNED + ACTIVE Company + all 4 stage logs; artifact carries HEURISTIC+SIMULATION labels; autonomous discovery (no idea) completes and records; unknown opportunityId fails honestly.
+
+Verification: tsc 0 errors; eslint 0 errors; 70/70 tests ×3 runs (was 65); next build compiles /api/genesis/company. FINAL ACCEPTANCE TEST (real execution, build:true): RUN-000011 with NO idea → discovered OPP-000002 → venture 58 WATCH | truth 7% | customer reality 72 (60% buy, 200 personas) | board CONDITIONAL 59% with "no evidence base" condition surfaced → full build 7/7 done → company co-opp-000002 + VENTURE_RUN.md (HEURISTIC banner, NO_WEB_EVIDENCE + SIMULATION stage labels). Total pipeline ~12.8s. (bun run build standalone cp still fails on the Windows junction — pre-existing.)
+
+Re-audit (next in V8_COMPLETION_QUEUE): G2 Approval Control Center (safety layer before any external-action work) → G5 Long-Horizon Operator ("operate 90 days" is the last pipeline leg with no machinery) → G1 World Scanner upgrade (discovery is the weakest gate without a browser key; truth 7% fallback) → G13 dashboard UI.
+
+Commit: cycle 8 committed on branch v6-intelligence-layers.

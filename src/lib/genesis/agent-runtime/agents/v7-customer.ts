@@ -113,7 +113,8 @@ export class CustomerSimulationAgent extends BaseAgent {
     const realityScore = Math.round(clamp(conversion * 0.5 + avgIntensity * 0.25 + wtpAlignment * 0.25));
 
     const mode = "HEURISTIC"; // LLM enrichment is a future upgrade; today personas are procedural.
-    const simulationId = `SIM-${(await db.customerSimulation.count() + 1).toString().padStart(6, "0")}`;
+    // Numeric max-scan — count()+1 collides after any row deletion.
+    const simulationId = `SIM-${(await nextSimNumber()).toString().padStart(6, "0")}`;
 
     // AEGIS: assert a SIMULATION-typed demand claim. Low weight, honest provenance —
     // a simulated buy-rate is a hypothesis, not verified market demand.
@@ -176,3 +177,10 @@ function topCounts<T extends string | undefined>(xs: T[]): { objection: string; 
   return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, count]) => ({ objection: k, trigger: k, feature: k, count }));
 }
 function sample<T>(xs: T[], n: number): T[] { return xs.slice(0, n); }
+
+async function nextSimNumber(): Promise<number> {
+  const rows = await db.customerSimulation.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { simulationId: true } });
+  let max = 0;
+  for (const r of rows) { const m = r.simulationId.match(/^SIM-(\d+)$/); if (m) max = Math.max(max, parseInt(m[1], 10)); }
+  return max + 1;
+}

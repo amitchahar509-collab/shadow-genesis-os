@@ -98,7 +98,8 @@ export class VentureAgent extends BaseAgent {
     );
     let verdict = ventureScore >= 70 ? "INVEST" : ventureScore >= 45 ? "WATCH" : "PASS";
 
-    const analysisId = `VC-${(await db.ventureAnalysis.count() + 1).toString().padStart(6, "0")}`;
+    // count()+1 collides after any deletion — allocate from the numeric max instead.
+    const analysisId = `VC-${(await nextAnalysisNumber()).toString().padStart(6, "0")}`;
 
     // AEGIS Truth check: the headline market claim must be backed by REAL evidence.
     // Only the opportunity's gathered sources count as support (WEB); the numeric
@@ -196,3 +197,11 @@ function renderMarkdown(d: { analysisId: string; subject: string; dims: VentureD
 
 function num(v: unknown, d: number): number { return typeof v === "number" && Number.isFinite(v) ? v : d; }
 function safeLen(json: string): number { try { const a = JSON.parse(json); return Array.isArray(a) ? a.length : 0; } catch { return 0; } }
+
+/** Numeric max-scan (count()+1 collides after any row deletion — same fix as EX-/CLM- ids). */
+async function nextAnalysisNumber(): Promise<number> {
+  const rows = await db.ventureAnalysis.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { analysisId: true } });
+  let max = 0;
+  for (const r of rows) { const m = r.analysisId.match(/^VC-(\d+)$/); if (m) max = Math.max(max, parseInt(m[1], 10)); }
+  return max + 1;
+}

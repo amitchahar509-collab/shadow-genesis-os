@@ -69,9 +69,11 @@ export class OpportunityAgent extends BaseAgent {
       }];
     }
 
-    // Persist opportunities
+    // Persist opportunities. Numeric max-scan — count()+1 collides after any row deletion.
     const created: { opportunityId: string; title: string }[] = [];
-    let nextNum = await db.opportunity.count() + 1;
+    const recent = await db.opportunity.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { opportunityId: true } });
+    let nextNum = 1;
+    for (const r of recent) { const m = r.opportunityId.match(/^OPP-(\d+)$/); if (m) nextNum = Math.max(nextNum, parseInt(m[1], 10) + 1); }
     for (const opp of opportunities) {
       const opportunityId = `OPP-${nextNum.toString().padStart(6, "0")}`;
       nextNum++;
