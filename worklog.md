@@ -263,3 +263,26 @@ Verification: tsc 0 errors; eslint 0 errors; 86/86 tests (was 78); next build co
 Re-audit: final pipeline now runs end-to-end (discover → evidence → venture → customers → board → build → operate → learn). Next ranked: G4 Acquisition loop (operate phase watches but doesn't grow; external experiments route through the G2 approval queue) → G13 dashboard UI (six intelligence systems are API-only) → G1 World Scanner upgrade → G12 Benchmark Arena.
 
 Commit: cycle 10 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 14
+Agent: Claude Code (Fable 5) — V8 cycle 11: Autonomous Acquisition Engine (G4)
+
+Task: Close V8 Gap 4 — the growth loop (hypothesis → experiment → measure → learn → next). The operate phase watched but didn't grow.
+
+Work Log:
+- Honesty decision first: with no deployed channels or telemetry, conversion numbers CANNOT be real. Every measurement carries dataSource: SIMULATION | REAL | NONE. Simulated buy-rates are measured against the seeded Digital Customer Simulation (same-distribution cohorts, reproducible) and are deliberately NOT written to GrowthMetric (that table implies real telemetry). CHANNEL experiments = real external actions → G2 approval queue → and even when approved they stop at AWAITING_EXECUTION because Genesis has no live channel integration and will not fabricate results.
+- Extended GrowthExperiment additively (no new table — reuse per the rules): experimentId (EXP- max-scan, unique), subject, kind (PRICING|AUDIENCE|CHANNEL|GENERIC), dataSource, learning, approvalId, nextAction, @@index(subject). Legacy rows untouched.
+- ACQUISITION agent (agents/v8-acquisition.ts, 16th registered agent; direct CustomerSimulationAgent import to avoid registry circularity): one call = one cycle; recorded history IS the experiment memory and decides the next hypothesis:
+  1. PRICING — 3 price points (0.6/1.0/1.4× base) each run through the customer sim; winner by revenue proxy (buyRate × price); [SIMULATION]-prefixed learning + SEMANTIC memory.
+  2. AUDIENCE — sim at winning price; best/worst converting industry segments (n≥5); learning names the target segment.
+  3. CHANNEL — proposes community outreach targeting the winning segment via guardExternalAction (POST) → AWAITING_APPROVAL. PENDING → keeps blocking; REJECTED → experiment KILLED with a learning (memory of what failed); APPROVED → AWAITING_EXECUTION, measurement empty until real execution + telemetry (G9). KILLED channels don't block a fresh proposal.
+- Operator integration: weekly review now runs one acquisition cycle for missions with an opportunity (the directive's weekly "growth results") — learning folded into findings, experiment id into metrics; failures never break the review.
+- API /api/genesis/acquisition: POST run a cycle; GET experiment memory + learnings (subject/kind filters).
+- Tests (7): registration; PRICING (3 points, winner, SIMULATION labels); deterministic winner across runs (seeded sims); AUDIENCE advances from memory + names segment; CHANNEL → approval queue with zero fabricated result fields + still-blocked recheck; rejection kills with learning then a fresh proposal, approval → AWAITING_EXECUTION "will not fabricate"; learnings queryable per subject with honesty labels.
+
+Verification: tsc 0 errors; eslint 0 errors; 93/93 tests (was 86); next build compiles /api/genesis/acquisition. E2E (real execution, operated mission over simulated weeks): wk1 PRICING LEARNED ($66→60%, $110→55%, $154→53.3% buy; $154 wins by revenue proxy), wk2 AUDIENCE LEARNED (Healthcare 59.1% best, Marketing 25% worst), wk3 CHANNEL AWAITING_APPROVAL (APR-000001) → human approves → wk4 AWAITING_EXECUTION, no fabricated results. (bun run build standalone cp still fails on the Windows junction — pre-existing.)
+
+Re-audit: honest boundaries by design — channel execution + REAL experiment data both wait on the reality-feedback layer (G9). Next ranked: G13 dashboard UI ("no hidden systems" — seven intelligence systems are API-only) → G12 Benchmark Arena → G1 World Scanner (needs key) → G9 Reality Feedback → G10 SaaS.
+
+Commit: cycle 11 committed on branch v6-intelligence-layers.

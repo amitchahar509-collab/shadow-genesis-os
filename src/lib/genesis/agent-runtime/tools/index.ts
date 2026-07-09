@@ -300,6 +300,7 @@ const PERMISSIONS: Record<string, string[]> = {
   INTERNET: ["browser", "api", "memory", "filesystem"],
   VENTURE: ["filesystem", "memory", "browser", "api"],
   CUSTOMER: ["filesystem", "memory"],
+  ACQUISITION: ["filesystem", "memory", "api"],
 };
 
 export function canUseTool(agent: string, toolName: string): boolean {

@@ -122,6 +122,13 @@ curl -X PATCH http://localhost:3000/api/genesis/operator \
   -H "Content-Type: application/json" \
   -d '{"action":"tickAll"}'   # runs due DAILY/WEEKLY/MONTHLY reviews on every active mission
 
+# Acquisition Engine — one growth-experiment cycle (PRICING → AUDIENCE → CHANNEL ladder)
+# Measurements are SIMULATION-labelled; CHANNEL experiments block on human approval and never fabricate results
+curl -X POST http://localhost:3000/api/genesis/acquisition \
+  -H "Content-Type: application/json" \
+  -d '{"opportunityId":"OPP-000001"}'
+curl "http://localhost:3000/api/genesis/acquisition?subject=OPP-000001"   # experiment memory + learnings
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

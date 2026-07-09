@@ -454,9 +454,19 @@ model GrowthExperiment {
   metric       String
   startDate    DateTime @default(now())
   endDate      DateTime?
-  status       String   @default("RUNNING") // RUNNING | COMPLETE | KILLED
+  status       String   @default("RUNNING") // legacy: RUNNING | COMPLETE | KILLED; acquisition engine: PROPOSED | AWAITING_APPROVAL | AWAITING_EXECUTION | LEARNED | KILLED
   result       String   @default("{}")
   createdAt    DateTime @default(now())
+  // V8 G4 — Acquisition Engine loop fields (additive; legacy rows keep NULL/defaults)
+  experimentId String?  @unique // EXP-000001
+  subject      String? // opportunityId | companyKey the experiment belongs to
+  kind         String   @default("GENERIC") // PRICING | AUDIENCE | CHANNEL | GENERIC
+  dataSource   String   @default("NONE") // SIMULATION | REAL | NONE — honesty label on every measurement
+  learning     String? // what worked / what failed / why (experiment memory)
+  approvalId   String? // APR- id when the experiment needs a human-approved external action
+  nextAction   String? // suggested follow-up experiment
+
+  @@index([subject])
 }
 
 model GrowthMetric {

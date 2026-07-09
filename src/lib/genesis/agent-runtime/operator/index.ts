@@ -160,11 +160,12 @@ async function dailyReview(mission: Mission, now: Date) {
   return { kind: "DAILY", reviewId, summary };
 }
 
-/** WEEKLY: re-run the Venture Analyst and flag score drift. */
+/** WEEKLY: re-run the Venture Analyst (strategy) and one acquisition cycle (growth results). */
 async function weeklyReview(mission: Mission, now: Date) {
   const findings: string[] = [];
   const state = safeParse(mission.metrics) as Record<string, unknown>;
   let ventureScore: number | undefined;
+  let growth: string | undefined;
 
   if (mission.opportunityId) {
     const r = await getAgent("VENTURE")!.execute({ goal: `weekly strategy re-check: ${mission.goal}`, context: { opportunityId: mission.opportunityId } });
@@ -177,13 +178,26 @@ async function weeklyReview(mission: Mission, now: Date) {
     } else {
       findings.push(`weekly venture re-check failed: ${r.error ?? r.summary}`);
     }
+    // Growth results: advance the acquisition experiment ladder one cycle.
+    try {
+      const g = await getAgent("ACQUISITION")!.execute({ goal: `weekly growth cycle: ${mission.goal}`, context: { opportunityId: mission.opportunityId, personaCount: 120 } });
+      if (g.status === "SUCCESS") {
+        const out = g.output as { experimentId: string; kind: string; status: string; learning: string };
+        growth = `${out.experimentId} [${out.kind}/${out.status}]`;
+        findings.push(`growth: ${out.learning.slice(0, 160)}`);
+      } else {
+        findings.push(`growth cycle failed: ${g.error ?? g.summary}`);
+      }
+    } catch (e) {
+      findings.push(`growth cycle error: ${e instanceof Error ? e.message : String(e)}`);
+    }
   } else {
     findings.push("no opportunity linked — strategy re-check skipped");
   }
 
   const reviewId = await nextId("REV");
-  const summary = `Weekly strategy review${ventureScore !== undefined ? `: venture ${ventureScore}/100` : ""}${findings.length ? ` — ${findings.join("; ")}` : ""}.`;
-  await db.operatorReview.create({ data: { reviewId, missionId: mission.missionId, kind: "WEEKLY", asOf: now, summary, findings: JSON.stringify(findings), metrics: JSON.stringify({ ventureScore }) } });
+  const summary = `Weekly strategy review${ventureScore !== undefined ? `: venture ${ventureScore}/100` : ""}${growth ? `, ${growth}` : ""}${findings.length ? ` — ${findings.join("; ")}` : ""}.`;
+  await db.operatorReview.create({ data: { reviewId, missionId: mission.missionId, kind: "WEEKLY", asOf: now, summary, findings: JSON.stringify(findings), metrics: JSON.stringify({ ventureScore, growthExperiment: growth }) } });
   await emit({ agent: "OPERATOR", action: "WEEKLY_REVIEW", detail: `${mission.missionId}: ${summary.slice(0, 140)}`, level: "INFO", category: "TASK" });
   return { kind: "WEEKLY", reviewId, summary };
 }
