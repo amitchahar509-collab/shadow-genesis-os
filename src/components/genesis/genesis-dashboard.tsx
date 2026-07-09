@@ -97,12 +97,21 @@ export function GenesisDashboard() {
     } catch {}
   }, []);
 
+  const [provider, setProvider] = useState<{ degraded: boolean; reasoningMode: string; model: string | null; provider: string } | null>(null);
+  const loadProvider = useCallback(async () => {
+    try {
+      const res = await fetch("/api/genesis/provider", { cache: "no-store" });
+      if (res.ok) setProvider((await res.json()).status);
+    } catch {}
+  }, []);
+
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSummary();
     loadStatus();
     loadMissions();
+    loadProvider();
     const t1 = setInterval(loadSummary, 20000);
     const t2 = setInterval(loadStatus, 5000);
     const t3 = setInterval(loadMissions, 5000);
@@ -142,6 +151,11 @@ export function GenesisDashboard() {
             <Chip variant="emerald" dot>SYSTEM ONLINE</Chip>
             <Chip variant="cyan">{activeMissions} ACTIVE MISSIONS</Chip>
             <Chip variant="amber">{status?.queued ?? 0} QUEUED</Chip>
+            {provider && (
+              <Chip variant={provider.degraded ? "amber" : "emerald"} dot>
+                {provider.degraded ? "LLM DEGRADED · HEURISTIC" : `LLM · ${provider.model ?? provider.provider}`}
+              </Chip>
+            )}
           </div>
 
           <div className="ml-auto flex items-center gap-3">

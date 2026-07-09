@@ -17,6 +17,9 @@ bun x prisma db push
 # Without one, agents use rule-based fallbacks (still functional, less creative)
 export ANTHROPIC_API_KEY=your-key-here   # preferred (Claude)
 # or: export ZAI_API_KEY=your-key-here   # fallback provider
+# Check which mode you're in (DEGRADED/heuristic vs real reasoning) + self-test the adapter:
+#   curl http://localhost:3000/api/genesis/provider            # status + capability matrix
+#   curl -X POST http://localhost:3000/api/genesis/provider    # real round-trip through the adapter
 
 # 4. Start the dev server
 bun run dev
