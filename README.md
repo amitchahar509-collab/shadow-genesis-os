@@ -168,6 +168,13 @@ curl -X POST http://localhost:3000/api/genesis/demand \
   -d '{"subject":"AI bookkeeping for freelancers","problem":"manual bookkeeping wastes hours","targetUsers":"freelancers"}'
 curl "http://localhost:3000/api/genesis/demand?limit=5"   # ranked demand matches (adoption = SIMULATION)
 
+# App Demand Marketplace — register an app (auto Product DNA + demand match), then match problems → products
+curl -X POST http://localhost:3000/api/genesis/marketplace \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" \
+  -d '{"name":"Ledgerly","problem":"manual invoicing wastes hours","targetUsers":"freelancers"}'
+curl "http://localhost:3000/api/genesis/marketplace?match=I%20need%20help%20with%20invoicing"   # problem → apps
+curl "http://localhost:3000/api/genesis/marketplace?stats=1"   # coverage + demand gaps (opportunity signals)
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

@@ -11,6 +11,7 @@ import { Chip, GenesisProgress, HudPanel } from "../primitives";
 import { BenchmarkArena } from "./benchmark-arena";
 import { AgentArena } from "./arena";
 import { DemandGraph } from "./demand";
+import { Marketplace } from "./marketplace";
 
 interface VentureRun {
   runId: string; status: string; focus: string | null; opportunityTitle: string | null;
@@ -184,6 +185,9 @@ export function VentureIntelligence() {
 
       {/* ===== Demand matching ===== */}
       <DemandGraph />
+
+      {/* ===== App marketplace ===== */}
+      <Marketplace />
 
       {/* ===== Agent competition ===== */}
       <AgentArena />

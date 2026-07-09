@@ -444,3 +444,26 @@ Verification: tsc 0 errors; eslint 0 errors; 132/132 tests (was 125); next build
 Re-audit: 11/13 V8 gaps done. Next ranked: G8 App Marketplace (cheap now — Product DNA + DemandMatch exist) → G11 plugin marketplace → G1 World Scanner (needs key) → guard rollout. Cross-cutting highest-value: exercise the LLM path + DEGRADED badge.
 
 Commit: cycle 18 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 22
+Agent: Claude Code (Opus 4.8) — V8 cycle 19: App Demand Marketplace (G8)
+
+Task: Close the network loop — built apps ↔ demand, people-with-problems ↔ products-solving-problems. Cheap now that Product DNA + DemandMatch (G3) exist.
+
+Work Log:
+- MarketplaceApp model (appId, name, dnaId, category, keywords, problem, targetUsers, topSegment, demandScore, improvementIdeas, source BUILT|USER_SUBMITTED, status).
+- marketplace module (agent-runtime/marketplace/index.ts): reuses G3's analyzeDemand:
+  * registerApp — fingerprints the app (Product DNA) + auto demand match, pulls improvement ideas from the customer-sim missing-feature signal, lists it.
+  * matchProblemToApps(query) — problem→apps: jaccard keyword overlap (0.6) + category hit (0.3) + demand tiebreak (0.1), behind a RELEVANCE GATE (no keyword/category hit ⇒ score 0, no false matches).
+  * marketplaceStats — category coverage + demand GAPS (industry universe minus covered top-segments = unserved opportunity signals) + avg demand.
+- API /api/genesis/marketplace: GET apps / ?match=query / ?stats=1; POST register (MEMBER-gated + audit; ownerOrgId from principal). Dashboard: App Demand Marketplace panel (listed apps with category/demand/source chips + demand-gaps line) in the Venture Intelligence tab.
+- Bug found before running: an unrelated query still scored every app via the demand-score term (demandScore/100*0.1 > 0). Added a relevance gate — demand is only a tiebreaker among genuinely relevant apps. Adjusted the ranking test to assert relative order (robust on a shared DB).
+- Honesty: apps must be real (registered from a built product/opportunity or submitted); empty marketplace is empty; demand/adoption carried from G3 stays SIMULATION-labelled; matching + gaps are transparent computations.
+- Tests (6): register fingerprints+matches+lists; problem→apps surfaces the relevant app and outranks the unrelated one; unrelated query → no false matches; improvement ideas carried; stats coverage+gaps partition the 10-industry universe (covered∩gaps=∅); empty marketplace honestly empty.
+
+Verification: tsc 0 errors; eslint 0 errors; 138/138 tests (was 132); next build compiles /api/genesis/marketplace. E2E (network effect): 3 apps listed (Ledgerly→Fintech/demand 65, DeployBot→Devtools/58, StandupAI→Productivity/55); problem searches routed correctly (invoicing→Ledgerly 49, deployment→DeployBot 42, no cross-match); marketplace intelligence — covered {Retail,Logistics,Education}, DEMAND GAPS {SaaS,Finance,Healthcare,Legal,Manufacturing,Marketing,Real Estate} as opportunity signals. (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: 12/13 V8 gaps closed. Only G1 World Scanner remains and it genuinely needs a browser/search key. Highest value-per-effort remaining: exercise the LLM path (turns every heuristic gate into real reasoning + enables real scanning) + DEGRADED badge; then guard rollout + G11 plugin perf tracking.
+
+Commit: cycle 19 committed on branch v6-intelligence-layers.

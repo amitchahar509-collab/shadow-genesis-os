@@ -720,6 +720,31 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — APP DEMAND MARKETPLACE (G8): match apps ↔ demand (network effect) ============
+model MarketplaceApp {
+  id               String   @id @default(cuid())
+  appId            String   @unique // APP-000001
+  name             String
+  dnaId            String   // its Product DNA fingerprint
+  opportunityId    String?
+  companyKey       String?
+  ownerOrgId       String?
+  category         String   @default("")
+  keywords         String   @default("[]") // fingerprint tokens (for problem↔app matching)
+  problem          String   @default("")
+  targetUsers      String   @default("")
+  topSegment       String? // best demand segment from its DemandMatch
+  demandScore      Float    @default(0)
+  improvementIdeas String   @default("[]") // JSON string[] — from customer-sim missing features
+  source           String   @default("BUILT") // BUILT | USER_SUBMITTED
+  status           String   @default("LISTED") // LISTED | DELISTED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+}
+
 // ============ V8 — DEMAND GRAPH + PRODUCT DNA (G3): match products to the people who need them ============
 model ProductDNA {
   id            String   @id @default(cuid())
