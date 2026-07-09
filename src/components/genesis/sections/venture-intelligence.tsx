@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Factory, FlaskConical, Gavel, Play, RefreshCw, Scale, ShieldQuestion } from "lucide-react";
 import { Chip, GenesisProgress, HudPanel } from "../primitives";
 import { BenchmarkArena } from "./benchmark-arena";
+import { AgentArena } from "./arena";
 
 interface VentureRun {
   runId: string; status: string; focus: string | null; opportunityTitle: string | null;
@@ -179,6 +180,9 @@ export function VentureIntelligence() {
           )}
         </HudPanel>
       </div>
+
+      {/* ===== Agent competition ===== */}
+      <AgentArena />
 
       {/* ===== Self-measurement ===== */}
       <BenchmarkArena />

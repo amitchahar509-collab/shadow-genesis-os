@@ -720,6 +720,50 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — AGENT ARENA (G6): teams compete, a judge picks the winner ============
+model ArenaCompetition {
+  id            String   @id @default(cuid())
+  competitionId String   @unique // ARENA-000001
+  mission       String
+  opportunityId String?
+  status        String   @default("RUNNING") // RUNNING | JUDGED | FAILED
+  winnerTeam    String? // ALPHA | BETA | GAMMA
+  winnerScore   Float    @default(0)
+  rationale     String   @default("") // judge's explanation of why the winner won
+  boardVerdict  String? // board review of the winning strategy
+  boardConfidence Float  @default(0)
+  mode          String   @default("HEURISTIC")
+  artifactPath  String? // ARENA_RESULT.md
+  createdAt     DateTime @default(now())
+  entries       ArenaEntry[]
+
+  @@index([status])
+}
+
+model ArenaEntry {
+  id             String   @id @default(cuid())
+  entryId        String   @unique // AE-000001
+  competitionId  String
+  team           String   // ALPHA | BETA | GAMMA
+  focus          String   // innovation | reliability | growth
+  positioning    String   // the team's strategic bet, stated
+  strategy       String   @default("{}") // JSON: transformed params + plan
+  ventureScore   Float    @default(0)
+  truthScore     Float    @default(0)
+  customerReality Float   @default(0)
+  buyRate        Float    @default(0)
+  feasibility    Float    @default(0)
+  risk           Float    @default(0) // 0-100, higher = riskier
+  totalScore     Float    @default(0) // judge's weighted total 0-100
+  rank           Int      @default(0) // 1 = winner
+  verdict        String   @default("") // WINNER | RUNNER_UP | REJECTED
+  scoreBreakdown String   @default("{}") // per-dimension JSON
+  createdAt      DateTime @default(now())
+  competition    ArenaCompetition @relation(fields: [competitionId], references: [competitionId], onDelete: Cascade)
+
+  @@index([competitionId])
+}
+
 // ============ V8 — SAAS FOUNDATION (G10): auth, orgs, roles, audit ============
 model AuthUser {
   id          String   @id @default(cuid())

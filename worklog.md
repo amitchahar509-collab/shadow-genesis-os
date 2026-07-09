@@ -374,3 +374,24 @@ Verification: tsc 0 errors; eslint 0 errors; 111/111 tests (was 105); next build
 Re-audit: production auth in place (set the flag + bootstrap). Remaining (queued, non-blocking): mechanical guard rollout to the other write routes (v4/dispatch, orchestrator/dispatch, prompts, custom-tools, sandboxes, seed) + optional per-org usage limits; gate reads in production by extending guard to GET. Next feature-ranked: G1 World Scanner (needs key) → G6 Agent Arena → G7 evolution → G3/G8. Highest value-per-effort cross-cutting: exercise the LLM path.
 
 Commit: cycle 15 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 19
+Agent: Claude Code (Opus 4.8) — V8 cycle 16: Agent Arena Competition Engine (G6)
+
+Task: Genesis trusts one solution — build multi-team competition. Phase 0 audit (G6_ARENA_AUDIT.md) → 3 teams + judge, scored by the real intelligence stack, winner never hardcoded.
+
+Work Log:
+- Phase 0: G6_ARENA_AUDIT.md — reusable parts (VENTURE/CUSTOMER/AEGIS/Boardroom/Memory/auth guard/dashboard conventions), missing (ArenaCompetition/ArenaEntry + arena module + API + panel), integration points, anti-faking guarantees.
+- Models: ArenaCompetition (winner/score/rationale/board review/mode) + ArenaEntry (per-team: venture/truth/customer/buyRate/feasibility/risk/totalScore/rank/verdict/breakdown).
+- arena module (agent-runtime/arena/index.ts): TEAMS = ALPHA(innovation)/BETA(reliability)/GAMMA(growth). Each transforms the SAME mission into a distinct strategic BET via a transparent param transform (not fabricated data — a real trade-off: ALPHA bolder value/higher difficulty/thinner proof; BETA simpler/proven/stronger evidence; GAMMA growth pricing/distribution/larger reach). Each bet scored by the REAL stack: VENTURE (revenue/longTerm), CUSTOMER (customerValue, seeded/reproducible), AEGIS assertClaim (evidence quality, evidence weighted by team's reliance on proof). Judge weights 7 directive dimensions (evidence.15/feasibility.15/customerValue.2/revenue.2/risk.1/speed.1/longTerm.1) → totalScore; ranks; winner = argmax (deterministic team-order tiebreak) — NEVER hardcoded. Boardroom reviews the winner. Winning pattern + failed strategies → memory (tags arena/winning-pattern/failed-strategy) for future G7 evolution. Artifact ARENA_RESULT.md.
+- API /api/genesis/arena (GET list+entries, POST run — ADMIN-gated via G10 guard + audit, background default). Dashboard: AgentArena panel (3 teams with score bars, winner trophy, board verdict, rationale) in the Venture Intelligence tab.
+- Bug found via tests: arena memory keyed by competitionId survives competition deletion, and ids reuse after deletion (max-scan) → source double-count. Hardened: losers' memory content now carries the subject; test clears all ARENA:-sourced memory for isolation. (Production never deletes competitions.)
+- Fixes: test boardVerdict string|undefined → non-null assert; arena panel effect restructured to the active-flag pattern (lint: no synchronous setState in effect).
+- Tests (6): runs 3 teams + rationale + non-zero real scores; winner = argmax(totalScore) with clean 1/2/3 ranks + verdicts; different missions → winner tracks the data (winning scores differ, not a constant); each entry has all 7 breakdown dims; board reviews winner + artifact; learning loop records 1 winning + 2 failed patterns.
+
+Verification: tsc 0 errors; eslint 0 errors; 117/117 tests (was 111); next build compiles /api/genesis/arena. ACCEPTANCE ("Create the best possible SaaS opportunity"): ALPHA venture71/customer77 but feasibility35/risk60.8 → 52 REJECTED; BETA 55 WINNER (led by speed/longTerm/risk); GAMMA 55 RUNNER_UP (tiebreak). Judge explained; board reviewed winner → NO_GO 75% (honest emergent behavior: bare mission has no evidence → AEGIS truth 0 → board refuses an evidence-less venture even though it won the relative competition; the layers correctly disagree rather than rubber-stamp). 3 learnings to memory. (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: next ranked G7 evolution completion (now has the arena learning substrate + AgentMetric to consume) → guard rollout to remaining write routes → G1 World Scanner (needs key) → G3/G8. Cross-cutting highest-value: exercise the LLM path (turns the 3 teams' heuristic bets into real reasoning).
+
+Commit: cycle 16 committed on branch v6-intelligence-layers.

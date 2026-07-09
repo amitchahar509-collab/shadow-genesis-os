@@ -150,6 +150,12 @@ curl -X POST http://localhost:3000/api/genesis/auth \
 curl -X PATCH http://localhost:3000/api/genesis/operator \
   -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" -d '{"action":"tickAll"}'
 
+# Agent Arena — 3 teams (ALPHA/BETA/GAMMA) compete on a mission; a judge picks the winner by real score
+curl -X POST http://localhost:3000/api/genesis/arena \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" \
+  -d '{"mission":"Create the best possible SaaS opportunity","background":false}'
+curl "http://localhost:3000/api/genesis/arena?limit=5"   # competitions, scored entries, winners
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 
