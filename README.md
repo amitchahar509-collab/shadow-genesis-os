@@ -108,6 +108,12 @@ curl -X POST http://localhost:3000/api/genesis/company \
   -d '{}'   # optionally: {"focus":"developer tools","build":false}
 curl http://localhost:3000/api/genesis/company   # poll run status
 
+# Approval Control Center — external actions (emails, posts, payments, HTTP writes) block until a human approves
+curl http://localhost:3000/api/genesis/approvals?status=PENDING   # the human queue
+curl -X PATCH http://localhost:3000/api/genesis/approvals \
+  -H "Content-Type: application/json" \
+  -d '{"requestId":"APR-000001","approve":true,"decidedBy":"you@example.com"}'   # approvals are single-use
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

@@ -220,3 +220,21 @@ Verification: tsc 0 errors; eslint 0 errors; 70/70 tests ×3 runs (was 65); next
 Re-audit (next in V8_COMPLETION_QUEUE): G2 Approval Control Center (safety layer before any external-action work) → G5 Long-Horizon Operator ("operate 90 days" is the last pipeline leg with no machinery) → G1 World Scanner upgrade (discovery is the weakest gate without a browser key; truth 7% fallback) → G13 dashboard UI.
 
 Commit: cycle 8 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 12
+Agent: Claude Code (Fable 5) — V8 cycle 9: Approval Control Center (G2)
+
+Task: Close V8 Gap 8 — the human safety layer. External actions must BLOCK until a human approves; human remains CEO.
+
+Work Log:
+- approvals module (agent-runtime/approvals/index.ts): ApprovalRequest model (APR- max-scan ids). scoreRisk() — transparent rule-based risk: base per actionType (PAYMENT 80 > PURCHASE 75 > ACCOUNT 65 > CUSTOMER_CONTACT 55 > EMAIL 50 > POST 45 > HTTP_WRITE 40) + payload signals (amount tiers, mass-contact recipient tiers, external host, irreversible flag), every factor recorded in riskFactors. requestApproval() → PENDING row + SECURITY event (WARNING at risk ≥70). decide() — human APPROVED/REJECTED, only from unexpired PENDING; re-decision refused. guardExternalAction() — the generic gate any agent calls: no approvalId → creates PENDING and denies; APPROVED admits EXACTLY ONCE via atomic updateMany(APPROVED→EXECUTED) so races can't double-fire; REJECTED/EXECUTED/EXPIRED never admit. expireStale() sweeps PENDING past expiresAt (default TTL 24h; swept lazily on queue reads).
+- Enforcement point (tools/index.ts apiTool): any non-GET/HEAD/OPTIONS request to a non-local host now routes through guardExternalAction as HTTP_WRITE → returns APPROVAL_REQUIRED with {requestId, riskScore} until approved; retry with input.approvalId consumes the approval. Reads and localhost writes stay free (research + local deploy health checks unaffected — mission pipeline unchanged, verified by full suite).
+- API /api/genesis/approvals: GET queue (status filter, pending count, lazy expiry sweep), POST manual enqueue, PATCH human decision.
+- Tests (8): risk ordering + transparent factors; guard blocks + creates PENDING; PENDING/REJECTED never admit; APPROVED single-use → EXECUTED; no re-decision + expiry sweep; api tool blocks external POST before any network call; approved retry passes gate; GET/localhost writes unaffected.
+
+Verification: tsc 0 errors; eslint 0 errors; 78/78 tests (was 70); next build compiles /api/genesis/approvals. E2E (real execution): GROWTH agent POST to external mailing host → BLOCKED APR-000001 (risk 45, factors listed) → human approve (decidedBy recorded) → retry executes (gate passed; only DNS fails) → replay BLOCKED, status EXECUTED. Full audit trail in ApprovalRequest + ActivityLog SECURITY events.
+
+Re-audit: next ranked G5 Long-Horizon Operator ("operate 90 days" — last pipeline leg with no machinery) → G4 Acquisition loop (now unblocked by this safety layer) → G1 World Scanner upgrade → G13 dashboard UI.
+
+Commit: cycle 9 committed on branch v6-intelligence-layers.

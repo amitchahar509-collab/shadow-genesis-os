@@ -172,13 +172,32 @@ export const codeTool: Tool = {
 
 export const apiTool: Tool = {
   name: "api",
-  description: "Outbound HTTP. Operations: request",
+  description: "Outbound HTTP. Operations: request. Writes to external hosts require human approval (pass approvalId after approval).",
   operations: ["request"],
-  async execute(op, input) {
+  async execute(op, input, ctx) {
     if (op !== "request") return { ok: false, summary: `unknown api op: ${op}`, error: "UNKNOWN_OP" };
     const url = String(input.url ?? "");
     const method = String(input.method ?? "GET").toUpperCase();
     if (!url || !/^https?:\/\//.test(url)) return { ok: false, summary: "api: invalid url", error: "BAD_INPUT" };
+
+    // Approval Control Center (V8 G2): a write to a non-local host is a real-world
+    // action — it must pass the human approval queue. Reads (GET/HEAD/OPTIONS) and
+    // local targets stay free for research/health checks.
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+      let external = true;
+      try { const { isLocalHost } = await import("../approvals"); external = !isLocalHost(new URL(url).hostname); } catch { /* unparseable → treat as external */ }
+      if (external) {
+        const { guardExternalAction } = await import("../approvals");
+        const gate = await guardExternalAction({
+          agent: ctx.agent, executionId: ctx.executionId, actionType: "HTTP_WRITE",
+          description: `${method} ${url}`, payload: { url, method, body: typeof input.body === "string" ? input.body.slice(0, 500) : input.body },
+          approvalId: typeof input.approvalId === "string" ? input.approvalId : undefined,
+        });
+        if (!gate.allowed) {
+          return { ok: false, summary: `api: blocked pending human approval (${gate.requestId})`, result: { requestId: gate.requestId, riskScore: gate.riskScore }, error: "APPROVAL_REQUIRED" };
+        }
+      }
+    }
     const headers = input.headers as Record<string, string> | undefined;
     const body = input.body !== undefined ? (typeof input.body === "string" ? input.body : JSON.stringify(input.body)) : undefined;
     const timeoutMs = Math.min(Number(input.timeoutMs ?? 30_000), 60_000);

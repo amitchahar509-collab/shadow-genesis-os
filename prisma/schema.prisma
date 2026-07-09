@@ -678,6 +678,28 @@ model CustomerSimulation {
   @@index([opportunityId])
 }
 
+// ============ V8 — APPROVAL CONTROL CENTER (G2): human remains CEO ============
+model ApprovalRequest {
+  id          String    @id @default(cuid())
+  requestId   String    @unique // APR-000001
+  agent       String  // which agent asked
+  executionId String?
+  actionType  String  // EMAIL | POST | PAYMENT | PURCHASE | ACCOUNT | CUSTOMER_CONTACT | HTTP_WRITE | OTHER
+  description String  // human-readable: what will happen if approved
+  payload     String    @default("{}") // JSON — the exact action parameters (audit trail)
+  riskScore   Float     @default(50) // 0-100
+  riskFactors String    @default("[]") // JSON string[] — why the score
+  status      String    @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED | EXPIRED
+  decidedBy   String? // human identity that decided
+  decisionNote String?
+  requestedAt DateTime  @default(now())
+  decidedAt   DateTime?
+  executedAt  DateTime? // approvals are single-use: consuming one marks it EXECUTED
+  expiresAt   DateTime? // pending requests expire (default 24h)
+
+  @@index([status])
+}
+
 // ============ V8 — INTEGRATED AUTONOMOUS PIPELINE (G0): discover → evidence → venture → customers → board → build ============
 model VentureRun {
   id                   String   @id @default(cuid())
