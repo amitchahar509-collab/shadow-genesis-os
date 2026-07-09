@@ -10,6 +10,7 @@ import { Factory, FlaskConical, Gavel, Play, RefreshCw, Scale, ShieldQuestion } 
 import { Chip, GenesisProgress, HudPanel } from "../primitives";
 import { BenchmarkArena } from "./benchmark-arena";
 import { AgentArena } from "./arena";
+import { DemandGraph } from "./demand";
 
 interface VentureRun {
   runId: string; status: string; focus: string | null; opportunityTitle: string | null;
@@ -180,6 +181,9 @@ export function VentureIntelligence() {
           )}
         </HudPanel>
       </div>
+
+      {/* ===== Demand matching ===== */}
+      <DemandGraph />
 
       {/* ===== Agent competition ===== */}
       <AgentArena />

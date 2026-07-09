@@ -720,6 +720,39 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — DEMAND GRAPH + PRODUCT DNA (G3): match products to the people who need them ============
+model ProductDNA {
+  id            String   @id @default(cuid())
+  dnaId         String   @unique // DNA-000001
+  opportunityId String?
+  companyKey    String?
+  subject       String
+  problem       String
+  category      String   @default("") // SaaS | Fintech | Healthtech | Devtools | Marketing | Ecommerce | Productivity | AI | Other
+  features      String   @default("[]") // JSON string[] (provided or inferred, labelled)
+  targetUsers   String   @default("")
+  alternatives  String   @default("[]") // JSON string[] — competitors / current solutions
+  keywords      String   @default("[]") // fingerprint tokens for matching
+  createdAt     DateTime @default(now())
+
+  @@index([opportunityId])
+}
+
+model DemandMatch {
+  id           String   @id @default(cuid())
+  matchId      String   @unique // DM-000001
+  dnaId        String
+  subject      String
+  demandScore  Float    @default(0) // 0-100 DEMAND_MATCH_SCORE (top-segment market fit)
+  topSegment   String? // best-fit industry
+  segments     String   @default("[]") // JSON: [{industry, community, needScore, adoptionProbability, marketFit, urgency, whyNow}]
+  mode         String   @default("HEURISTIC") // adoption from seeded CUSTOMER simulation; fit is heuristic
+  artifactPath String? // DEMAND_MAP.md
+  createdAt    DateTime @default(now())
+
+  @@index([dnaId])
+}
+
 // ============ V8 — AGENT EVOLUTION (G7): agents improve from real performance ============
 model EvolutionAction {
   id        String   @id @default(cuid())

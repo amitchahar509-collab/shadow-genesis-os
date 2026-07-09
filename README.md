@@ -162,6 +162,12 @@ curl -X PATCH http://localhost:3000/api/genesis/evolution \
   -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" \
   -d '{"action":"evolveAll","apply":false}'   # dry-run sweep; apply:true to enact prompt changes
 
+# Demand Graph + Product DNA — fingerprint a product, then find who needs it, where, and how urgently
+curl -X POST http://localhost:3000/api/genesis/demand \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" \
+  -d '{"subject":"AI bookkeeping for freelancers","problem":"manual bookkeeping wastes hours","targetUsers":"freelancers"}'
+curl "http://localhost:3000/api/genesis/demand?limit=5"   # ranked demand matches (adoption = SIMULATION)
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

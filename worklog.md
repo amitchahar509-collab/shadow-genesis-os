@@ -420,3 +420,27 @@ Verification: tsc 0 errors; eslint 0 errors; 125/125 tests (was 117); next build
 Re-audit: improvement loop closed. 10/13 V8 gaps done (G0/G2/G4/G5/G6/G7/G9/G10/G12/G13). Next ranked: G1 World Scanner upgrade (needs a browser key) → G3 Demand Graph / G8 Marketplace → guard rollout + usage limits → G11 plugin marketplace (evolution already writes AgentTemplate rows — natural feed). Cross-cutting highest-value: exercise the LLM path + DEGRADED provider badge.
 
 Commit: cycle 17 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 21
+Agent: Claude Code (Opus 4.8) — V8 cycle 18: Demand Graph + Product DNA (G3)
+
+Task: Close the "build → find exact users" leg. Products need to be matched to the people who need them.
+
+Work Log:
+- Phase 0 audit: reuse KnowledgeNode/KnowledgeEdge (existing V4 graph + v4/knowledge route) for the demand graph, and CustomerSimulation.segments (per-industry buyRate — real seeded adoption) for the Customer Match. Built as a module (consistent with pipeline/arena/evolution).
+- Models: ProductDNA (subject/problem/category/features/targetUsers/alternatives/keywords fingerprint) + DemandMatch (demandScore/topSegment/ranked segments JSON).
+- demand module (agent-runtime/demand/index.ts):
+  * computeProductDNA — deterministic fingerprint from real opportunity/input: classifyCategory (stem-keyword table: Fintech/Healthtech/Devtools/Marketing/Ecommerce/Productivity/AI/Legal/Other), tokenize→keywords (stopword-filtered), alternatives from opp.competition, features provided-or-inferred (labelled).
+  * matchDemand (the Customer Match) — runs the REAL seeded CUSTOMER sim → per-industry buy rates (adoption); per segment computes needScore (category↔industry affinity + adoption, transparent heuristic), marketFit (0.55*adoption+0.45*need), urgency (LOW/MED/HIGH), whyNow, community (where-to-reach lookup); ranks by fit → DEMAND_MATCH_SCORE (top-3 avg). Projects product↔problem↔industry edges into KnowledgeNode/KnowledgeEdge. Artifact DEMAND_MAP.md.
+  * analyzeDemand — one-shot DNA→match.
+- Honesty: adoption = seeded SIMULATION (labelled in artifact + mode), fit = labelled heuristic, communities = suggestions (not fabricated user data). No fake users.
+- API /api/genesis/demand (GET matches/by-id+DNA, POST analyze — MEMBER-gated + audit). Dashboard: Demand Graph panel (per-match ranked segments with fit bars, adoption %, urgency chips, community) in the Venture Intelligence tab.
+- Bug found via tests: classifyCategory used full-word keywords ("invoice") that don't substring-match inflections ("invoicing") → Fintech misclassified. Fixed to stems ("invoic","paymen","financ",…).
+- Tests (7): classifyCategory mapping; deterministic DNA fingerprint (category+keywords, stopwords removed); matchDemand ranks by marketFit desc + DEMAND_MATCH_SCORE + who/where/why-now per segment; category affinity lifts the right industries' need; honesty (SIMULATION-labelled artifact); graph projection (product node + edges); analyzeDemand one-shot on an opportunity (category + alternatives from competition).
+
+Verification: tsc 0 errors; eslint 0 errors; 132/132 tests (was 125); next build compiles /api/genesis/demand. E2E ("AI bookkeeping for freelancers"): DNA category Fintech, keywords extracted; DEMAND_MATCH_SCORE 58/100, top segment Finance (Fintech-affinity → need 80 HIGH, correctly ranked #1 above non-affinity Education/Manufacturing); real seeded adoption per segment (Finance 50%, Retail 41%…); communities as where-to-reach; product node + 4 graph edges. (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: 11/13 V8 gaps done. Next ranked: G8 App Marketplace (cheap now — Product DNA + DemandMatch exist) → G11 plugin marketplace → G1 World Scanner (needs key) → guard rollout. Cross-cutting highest-value: exercise the LLM path + DEGRADED badge.
+
+Commit: cycle 18 committed on branch v6-intelligence-layers.
