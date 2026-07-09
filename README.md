@@ -129,6 +129,12 @@ curl -X POST http://localhost:3000/api/genesis/acquisition \
   -d '{"opportunityId":"OPP-000001"}'
 curl "http://localhost:3000/api/genesis/acquisition?subject=OPP-000001"   # experiment memory + learnings
 
+# Benchmark Arena — Genesis scores itself (discrimination: does it rank strong>weak, refuse unsupported confidence?)
+curl -X POST http://localhost:3000/api/genesis/benchmark \
+  -H "Content-Type: application/json" \
+  -d '{"suite":"intelligence","background":false}'   # → autonomyScore + per-capability pass/score
+curl "http://localhost:3000/api/genesis/benchmark?trend=1"   # score trend over time
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

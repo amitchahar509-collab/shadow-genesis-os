@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Factory, FlaskConical, Gavel, Play, RefreshCw, Scale, ShieldQuestion } from "lucide-react";
 import { Chip, GenesisProgress, HudPanel } from "../primitives";
+import { BenchmarkArena } from "./benchmark-arena";
 
 interface VentureRun {
   runId: string; status: string; focus: string | null; opportunityTitle: string | null;
@@ -178,6 +179,9 @@ export function VentureIntelligence() {
           )}
         </HudPanel>
       </div>
+
+      {/* ===== Self-measurement ===== */}
+      <BenchmarkArena />
 
       <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-wider text-zinc-600">
         <RefreshCw className="w-3 h-3" /> auto-refreshes every 15s · amber chips = heuristic/simulated (no LLM key) — never presented as real data

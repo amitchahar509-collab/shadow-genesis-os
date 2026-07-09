@@ -305,3 +305,28 @@ Verification: tsc 0 errors; eslint 0 errors; 93/93 tests; next build compiles (5
 Re-audit: "no hidden systems" closed. Next ranked: G12 Benchmark Arena (Genesis still doesn't score itself) → G9 Reality Feedback (unlocks REAL measurements + channel execution) → G1 World Scanner (needs key) → G10 SaaS/auth → G6/G7 arena + evolution.
 
 Commit: cycle 12 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 16
+Agent: Claude Code (Opus 4.8) — V8 cycle 13: Benchmark Arena (G12)
+
+Task: Close V8 Gap 12 — Genesis must measure itself. No persisted self-scoring existed (verify-mission.ts was a one-shot script).
+
+Work Log:
+- Design principle: the honest measure of an intelligence layer in heuristic mode is DISCRIMINATION — does it rank a genuinely strong case above a genuinely weak one, and refuse unsupported confidence? Every benchmark task runs REAL code (real agents, DB rows, timings); nothing mocked, no score fabricated. Scores rise automatically when an LLM key replaces heuristics; `mode` records the substrate so heuristic and LLM scores aren't compared blindly.
+- benchmark module (agent-runtime/benchmark/index.ts): 5 intelligence tasks + 1 optional heavy BUILD task:
+  * EVIDENCE — strong multi-source → SUPPORTED; zero evidence → UNSUPPORTED@0 (the AEGIS invariant).
+  * VENTURE — strong opp ventureScore must exceed weak (orderingScore rewards margin).
+  * CUSTOMER — strong-fit buyRate must exceed weak-fit.
+  * BOARD — strong context must not be NO_GO; weak must not be GO.
+  * CHAIN — a seeded strong evidence-backed opportunity must traverse all gates via createCompany and not be halted (self-cleans its seeded rows in finally).
+  * BUILD (full suite) — real dispatchGoal mission; score = fraction of tasks DONE.
+  runBenchmark aggregates a weighted autonomyScore + successRate + real durationMs/avgTaskMs/tokensUsed (0 in heuristic = honest), persists BenchmarkRun (JSON per-task results). benchmarkTrend returns history newest-first.
+- BenchmarkRun model; API /api/genesis/benchmark (GET history/trend/by-id; POST run — full suite defaults background). Dashboard: BenchmarkArena panel (autonomy score, per-capability pass/score tiles, history bars, RUN button) added to the Venture Intelligence tab.
+- Tests (5): intelligence suite runs 5 real scored tasks + persists; stack discriminates correctly (all 5 pass, successRate 100, autonomy>70 in heuristic); heuristic mode reports 0 tokens (no fabricated cost) + real ms; trend accumulates newest-first; decision-chain leaves no residue.
+
+Verification: tsc 0 errors; eslint 0 errors; 98/98 tests (was 93); next build compiles /api/genesis/benchmark. LIVE EXECUTION (real-path dev server, POST from the RUN-button path): autonomy 100/100, 5/5 passed, HEURISTIC, 2689ms — EVIDENCE strong=SUPPORTED(63)/none=UNSUPPORTED(0), VENTURE 79>21, CUSTOMER 82.5%>11%, BOARD strong→GO/weak→NO_GO, CHAIN all gates DISCOVER>VENTURE>CUSTOMER>BOARD board=GO. UI: panel compiles/lints and is unconditionally mounted in the venture tab; confirmed all tab BODIES are client-gated (last cycle's proven panels equally absent from initial SSR) so the panel wiring matches working siblings — browser-pixel render still blocked by the Next-16/Downloads-junction bug (documented; env, not code). (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: last self-measurement gap closed. Next ranked: G9 Reality Feedback (unlocks REAL experiment data + channel execution — closes the outer learning loop) → G10 SaaS/auth (top production blocker) → G1 World Scanner (needs key) → G6/G7/G3/G8.
+
+Commit: cycle 13 committed on branch v6-intelligence-layers.

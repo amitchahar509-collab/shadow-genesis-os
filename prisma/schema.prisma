@@ -710,6 +710,25 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — BENCHMARK ARENA (G12): Genesis measures itself ============
+model BenchmarkRun {
+  id             String   @id @default(cuid())
+  runId          String   @unique // BM-000001
+  suite          String   @default("intelligence") // intelligence | full
+  autonomyScore  Float    @default(0) // 0-100 weighted composite
+  successRate    Float    @default(0) // 0-100 % of tasks that passed their assertion
+  totalTasks     Int      @default(0)
+  passed         Int      @default(0)
+  durationMs     Int      @default(0)
+  avgTaskMs      Int      @default(0)
+  tokensUsed     Int      @default(0) // real cost — 0 in heuristic mode (honest)
+  mode           String   @default("HEURISTIC") // HEURISTIC | MIXED | LLM — reasoning substrate under test
+  results        String   @default("[]") // JSON per-task: {id, capability, pass, score, ms, tokens, detail}
+  createdAt      DateTime @default(now())
+
+  @@index([suite])
+}
+
 // ============ V8 — LONG-HORIZON OPERATOR (G5): operate companies for 30/60/90 days ============
 model LongMission {
   id              String    @id @default(cuid())
