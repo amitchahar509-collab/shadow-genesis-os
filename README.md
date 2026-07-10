@@ -1,5 +1,7 @@
 # SHADOW GENESIS OS
 
+[![CI](https://github.com/amitchahar509-collab/shadow-genesis-os/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/amitchahar509-collab/shadow-genesis-os/actions/workflows/ci.yml)
+
 > Autonomous AI organization that researches, builds, deploys, and improves digital products.
 
 Shadow Genesis OS is an autonomous AI company operating system. Give it a goal — "build a note-taking app" — and it autonomously researches the market, validates the business, designs the architecture, builds the product, tests it, security-scans it, deploys it, monitors it, and plans growth + revenue.
