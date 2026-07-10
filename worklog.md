@@ -532,3 +532,22 @@ Verification: tsc 0 errors; eslint 0 errors; 158/158 tests (was 149); next build
 Re-audit: every V8 gap (13/13) + both force-multipliers (LLM-path visibility, plugin marketplace) delivered. Remaining is operational/hardening ONLY: set a valid ANTHROPIC_API_KEY (real reasoning + web scanning — operational); guard rollout to remaining write routes + usage limits; CI workflow + standalone-build/junction env debt. The autonomous venture network is functionally complete and honest end-to-end.
 
 Commit: cycle 22 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 26
+Agent: Claude Code (Opus 4.8) — cycle 23: Guard rollout + per-org usage limits (G10 hardening)
+
+Task: Finish auth production-hardening — apply the guard to every remaining mutation route + add per-org usage limits. No fake, no rebuild.
+
+Work Log:
+- Phase 0 audit: 49 mutation route files — 11 already guarded (cycles 15-22), 38 OPEN (POST/PATCH/DELETE with no auth). The security hole: anyone could dispatch missions, seed/wipe the DB, spawn sandboxes, mutate prompts/tools, etc.
+- UsageCounter model (orgId, day, count, limit) + checkAndRecordUsage(principal): local/single-operator principal is UNMETERED; a real org key is metered against a daily cap (GENESIS_ORG_DAILY_LIMIT, default 2000) → 429 when exceeded. Upsert-increment per org per UTC-day.
+- Shared helper src/lib/api-guard.ts: guardWrite(req, role) = guard (auth, 401/403) + checkAndRecordUsage (429) + generic audit ("API_WRITE METHOD path"). Returns { ok, principal } | { ok:false, res }.
+- Rolled out via a one-time script (scripts/apply-guard.ts, removed after) with a per-route ROLE map: ADMIN on 21 destructive/infra/spend routes (orchestrator/dispatch, v4/dispatch, v4/self-audit, sandboxes×2, seed, prompts×3, agent-templates×2, custom-tools, tools/[name], agents, agents/states, loops, metrics/compute, boardroom, benchmark, deployments/[id]/monitor, security/[id]); MEMBER on 17 data-create/analysis routes (acquisition, activity, aegis, companies, customers, decisions×2, growth/experiments, memory, messages, opportunities/[id]/validate, projects×2, tasks, v4/knowledge, v4/reality, venture). Script normalized _req/() handler signatures to req: NextRequest and inserted the guard as the first statement of each mutating handler. Fixed a missing `emit` import in auth (checkAndRecordUsage).
+- Tests (4, usage-guard.test.ts): local principal unmetered (no counter row); org principal metered + 429 past a limit-of-2; a REAL rolled-out route (aegis POST) → 401 without key + 200 with a bootstrapped key under enforcement, usage metered; local mode (unenforced) → route still 200 without a key (dashboard unaffected).
+
+Verification: tsc 0 errors; eslint 0 errors; 162/162 tests (was 158); next build compiles all 38 changed routes. Final audit: **0 open mutation routes, 50 guarded**. LIVE (dev server GENESIS_AUTH_REQUIRED=1): 7 sampled rolled-out routes (seed/orchestrator-dispatch/venture/tasks/v4-dispatch/loops/memory) all 401 without a key; reads (aegis/venture/provider) 200; bootstrap OWNER key → venture POST 200. (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: auth surface COMPLETE (0 open mutation routes) + per-org usage limits. The "No auth" HIGH production blocker is resolved. System is feature-complete AND production-hardened on auth. Remaining is operational/optional: set a valid ANTHROPIC_API_KEY (real reasoning — operational); a CI workflow (nothing runs on commit today); the standalone-build/junction env debt.
+
+Commit: cycle 23 committed on branch v6-intelligence-layers.

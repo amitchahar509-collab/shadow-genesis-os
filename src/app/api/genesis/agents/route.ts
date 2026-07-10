@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 import { AGENT_NAMES, describeAgents, getAgent } from "@/lib/genesis/agent-runtime/agents";
 import type { AgentRunInput } from "@/lib/genesis/agent-runtime/base-agent";
@@ -8,6 +9,7 @@ export async function GET() {
   return NextResponse.json({ agents, recent, total: AGENT_NAMES.length });
 }
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const body = await req.json();
   const { agent, goal, taskId, context, timeoutMs, projectId } = body;
   if (!agent || !goal) return NextResponse.json({ error: "agent and goal required" }, { status: 400 });

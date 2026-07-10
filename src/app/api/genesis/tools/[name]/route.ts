@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import * as path from "node:path";
 import { promises as fs } from "node:fs";
 import { getTool } from "@/lib/genesis/agent-runtime/tools";
 import type { ToolContext } from "@/lib/genesis/agent-runtime/tools/index";
 export async function POST(req: NextRequest, { params }: { params: Promise<{ name: string }> }) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const { name } = await params;
   const body = await req.json();
   const { operation, input, sandbox } = body;

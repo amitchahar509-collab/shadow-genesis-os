@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { createSandbox, listSandboxes, runInSandbox, cleanupExpired } from "@/lib/genesis/agent-runtime/sandbox/manager";
 export async function GET() { const sandboxes = await listSandboxes(); return NextResponse.json({ sandboxes, count: sandboxes.length }); }
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const body = await req.json();
   const action = body.action ?? "create";
   if (action === "create") { const sb = await createSandbox({ ttlSeconds: body.ttlSeconds, executionId: body.executionId, projectId: body.projectId, port: body.port, label: body.label }); return NextResponse.json({ sandbox: sb }); }

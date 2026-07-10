@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 
 // GET /api/genesis/activity?limit=
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest) {
 
 // POST — push a new activity entry (used by websocket mini-service & UI actions)
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "MEMBER"); if (!_a.ok) return _a.res;
   const body = await req.json();
   const created = await db.activityLog.create({
     data: {

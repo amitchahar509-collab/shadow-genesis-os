@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; const t = await db.agentTemplate.findUnique({ where: { id } }); if (!t) return NextResponse.json({ error: "not found" }, { status: 404 }); return NextResponse.json({ template: t }); }
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const { id } = await params;
   const t = await db.agentTemplate.findUnique({ where: { id } });
   if (!t) return NextResponse.json({ error: "not found" }, { status: 404 });

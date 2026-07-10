@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 import { runBenchmark, benchmarkTrend } from "@/lib/genesis/agent-runtime/benchmark";
 
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
  *  The full suite runs a real build mission (minutes) — defaults to background.
  */
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const body = await req.json().catch(() => ({}));
   const { suite, background } = body as { suite?: "intelligence" | "full"; background?: boolean };
   const s = suite === "full" ? "full" : "intelligence";

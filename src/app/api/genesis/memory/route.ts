@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 import { getMemoryEngine } from "@/lib/genesis/agent-runtime/memory/engine";
 export async function GET(req: NextRequest) {
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ memory: results, count: results.length, engine: "recall" });
 }
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "MEMBER"); if (!_a.ok) return _a.res;
   const body = await req.json();
   const created = await getMemoryEngine().record({ type: body.type, title: body.title, content: body.content, tags: body.tags ?? [], importance: body.importance ?? 5, source: body.source });
   return NextResponse.json({ memory: created });

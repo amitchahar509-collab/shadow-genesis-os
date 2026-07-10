@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 const AUDIT_QUESTIONS = [
   "Are we solving a real problem?",
@@ -15,6 +16,7 @@ export async function GET() {
   return NextResponse.json({ audits, questions: AUDIT_QUESTIONS });
 }
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const { question, context } = await req.json();
   const audit = await db.selfAudit.create({ data: { question, context: JSON.stringify(context ?? {}), finding: "", recommendation: "", severity: "INFO" } });
   return NextResponse.json({ audit });

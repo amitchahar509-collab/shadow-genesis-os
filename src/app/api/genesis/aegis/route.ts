@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 import { assertClaim, verifySubject, type EvidenceInput } from "@/lib/genesis/agent-runtime/aegis";
 
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
  *  body: { statement, subject?, category?, source?, evidence: [{stance, summary, source, sourceType?, weight?}], unknowns? }
  */
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "MEMBER"); if (!_a.ok) return _a.res;
   const body = await req.json().catch(() => ({}));
   const { statement, subject, category, source, evidence, unknowns } = body as {
     statement?: string; subject?: string; category?: string; source?: string; evidence?: EvidenceInput[]; unknowns?: string[];

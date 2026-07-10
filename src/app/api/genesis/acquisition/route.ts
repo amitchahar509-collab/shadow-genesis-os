@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 import { getAgent } from "@/lib/genesis/agent-runtime/agents";
 
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
  *  body: { opportunityId? , subject?, context? }  — one of opportunityId | subject required.
  */
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "MEMBER"); if (!_a.ok) return _a.res;
   const body = await req.json().catch(() => ({}));
   const { opportunityId, subject, context } = body as { opportunityId?: string; subject?: string; context?: Record<string, unknown> };
   if (!opportunityId && !subject) return NextResponse.json({ error: "opportunityId or subject required" }, { status: 400 });

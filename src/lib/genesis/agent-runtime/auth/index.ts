@@ -17,6 +17,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
+import { emit } from "../event-bus";
 
 export type Role = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 const RANK: Record<Role, number> = { VIEWER: 1, MEMBER: 2, ADMIN: 3, OWNER: 4 };
@@ -100,3 +101,25 @@ export async function audit(principal: Principal, action: string, target?: strin
 }
 
 export async function isProvisioned(): Promise<boolean> { return (await db.authUser.count()) > 0; }
+
+/**
+ * Per-org daily mutation quota. The local/single-operator principal is
+ * unlimited; a real org key is metered against a daily cap (env
+ * GENESIS_ORG_DAILY_LIMIT, default 2000, or a per-row override). Returns the
+ * remaining budget, or ok:false at 429 when the cap is exceeded.
+ */
+export async function checkAndRecordUsage(principal: Principal): Promise<{ ok: boolean; remaining: number; limit: number; error?: string }> {
+  if (principal.local) return { ok: true, remaining: Number.MAX_SAFE_INTEGER, limit: 0 }; // local operator: unmetered
+  const day = new Date().toISOString().slice(0, 10);
+  const defaultLimit = Number(process.env.GENESIS_ORG_DAILY_LIMIT) || 2000;
+  const row = await db.usageCounter.upsert({
+    where: { orgId_day: { orgId: principal.orgId, day } },
+    create: { orgId: principal.orgId, day, count: 1, limit: defaultLimit },
+    update: { count: { increment: 1 } },
+  });
+  if (row.count > row.limit) {
+    await emit({ agent: "AUTH", action: "USAGE_LIMIT", detail: `${principal.orgId} exceeded daily limit ${row.limit}`, level: "WARNING", category: "SECURITY" });
+    return { ok: false, remaining: 0, limit: row.limit, error: `daily usage limit reached (${row.limit}/day for this org)` };
+  }
+  return { ok: true, remaining: row.limit - row.count, limit: row.limit };
+}

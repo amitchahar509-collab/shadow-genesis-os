@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { rollback } from "@/lib/genesis/agent-runtime/improvement/prompts";
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const { agent } = await req.json();
   if (!agent) return NextResponse.json({ error: "agent required" }, { status: 400 });
   const rolled = await rollback(agent);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 
 // GET /api/genesis/tasks?status=&priority=&department=&q=
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/genesis/tasks — create a new task
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "MEMBER"); if (!_a.ok) return _a.res;
   const body = await req.json();
   const created = await db.genesisTask.create({
     data: {
@@ -52,6 +54,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/genesis/tasks — update a task (status / progress)
 export async function PATCH(req: NextRequest) {
+  const _a = await guardWrite(req, "MEMBER"); if (!_a.ok) return _a.res;
   const body = await req.json();
   const { id, ...rest } = body;
   const data: Record<string, unknown> = { ...rest };

@@ -35,7 +35,7 @@ The project arrived as a tar from a Linux workspace. This machine had **no Node,
 
 ## MISSING
 
-- **Authentication / authorization** — ✅ core DELIVERED (cycle 15, G10). Hashed API-key auth + orgs + roles (OWNER/ADMIN/MEMBER/VIEWER) + audit log; `GENESIS_AUTH_REQUIRED=1` enforces on the 4 highest-risk mutation routes (approvals/company/operator/feedback) — 401/403 without a valid key, reads stay open, local dev unchanged. `auth/`, `/api/genesis/auth`, 6 tests, live-proven. Remaining: mechanical guard rollout to the other write routes + optional per-org usage limits.
+- **Authentication / authorization** — ✅ COMPLETE (cycle 15 core + cycle 23 rollout, G10). Hashed API-key auth + orgs + roles + audit log; `GENESIS_AUTH_REQUIRED=1` now enforces on **all 50 mutation routes** via a shared `guardWrite(req, role)` helper (auth + per-org daily usage limit + audit) — 401/403 without a valid key, 429 over an org's daily cap, reads stay open, local dev unmetered/unchanged. `auth/` + `api-guard.ts` + `UsageCounter`, `/api/genesis/auth`, 10 tests, live-proven across sampled routes. No open mutation routes remain.
 - **LLM provider** — no key configured; every LLM-gated path falls back to rules. As of cycle 21 this is NO LONGER SILENT: `agent-runtime/provider/` + `/api/genesis/provider` + a dashboard DEGRADED badge surface the reasoning mode and a capability matrix (which gates are HEURISTIC vs LLM right now; procedural-by-design gates marked EXACT, not degraded). A real self-test round-trips the actual adapter (proven: a dummy key produces a genuine Anthropic 401 with a request_id after a 1.5s network call — the path executes end-to-end). One valid `ANTHROPIC_API_KEY` flips every LLM-gated gate to real reasoning with zero code change.
 - **AI Boardroom** (directive Phase 4) — ✅ DELIVERED (cycle 4). Nine executive seats debate every dispatch → GO/CONDITIONAL/NO_GO verdict + `BOARD_DECISION.md`; wired into `dispatchGoal` (advisory by default, `enforceBoard` halts on NO_GO). LLM-optional, honestly labelled HEURISTIC without a key. `agent-runtime/boardroom/`, `/api/genesis/boardroom`, 6 tests.
 - **AI Venture Analyst** (V6 Phase 3) — ✅ DELIVERED (cycle 5). Registered `VENTURE` agent scores 7 VC dimensions → `VENTURE_SCORE` + INVEST/WATCH/PASS; feeds the boardroom via dependency handoff. `agents/v6-venture.ts`, `/api/genesis/venture`, 6 tests. LLM-optional, HEURISTIC-labelled with declared unknowns.
@@ -69,7 +69,7 @@ The project arrived as a tar from a Linux workspace. This machine had **no Node,
 
 ## PRODUCTION BLOCKERS (remaining)
 
-1. **No auth** (HIGH) — anyone can trigger missions/agents.
+1. ~~**No auth** (HIGH)~~ — ✅ RESOLVED (cycle 15 + 23). All 50 mutation routes require a valid key when `GENESIS_AUTH_REQUIRED=1`; per-org daily usage limits; audit trail. Local dev unchanged.
 2. **No LLM key** (HIGH for product value) — the system runs its rule-based pipeline until a provider is configured. No longer misleading: the provider status + DEGRADED badge + capability matrix (cycle 21) make the heuristic mode explicit and self-testable; a valid `ANTHROPIC_API_KEY` activates real reasoning everywhere.
 3. **Stale RUNNING executions** — crashed runs leave `AgentExecution` rows in RUNNING forever (observed EX-000002); nothing reaps them.
 4. **`nextTaskNumber`/id ordering is lexicographic** — breaks at `T-1000` (duplicate id → unique violation).

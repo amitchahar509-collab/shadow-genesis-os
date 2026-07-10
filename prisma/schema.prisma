@@ -953,6 +953,19 @@ model ApiKey {
   @@index([hash])
 }
 
+model UsageCounter {
+  id        String   @id @default(cuid())
+  orgId     String
+  day       String   // YYYY-MM-DD (UTC)
+  count     Int      @default(0)
+  limit     Int      @default(2000) // per-org daily mutation cap (override per row)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, day])
+  @@index([orgId])
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   auditId   String   @unique // AL-000001

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -10,6 +11,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ experiments, metrics });
 }
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "MEMBER"); if (!_a.ok) return _a.res;
   const { projectId, name, hypothesis, variant, metric } = await req.json();
   if (!name || !hypothesis) return NextResponse.json({ error: "name and hypothesis required" }, { status: 400 });
   const exp = await db.growthExperiment.create({ data: { projectId: projectId ?? null, name, hypothesis, variant: variant ?? "A", metric: metric ?? "conversion" } });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 import { conveneBoard, BOARD } from "@/lib/genesis/agent-runtime/boardroom";
 
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
  *  body: { question, topic?, context?, projectId?, missionId? }
  */
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const body = await req.json().catch(() => ({}));
   const { question, topic, context, projectId, missionId } = body as {
     question?: string; topic?: string; context?: Record<string, unknown>; projectId?: string; missionId?: string;

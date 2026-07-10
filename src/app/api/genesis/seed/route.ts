@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse , NextRequest} from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { seedGenesis } from "@/lib/genesis/seed";
 
 // POST /api/genesis/seed — (re)seed the entire Genesis OS state. Idempotent.
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   try {
     const result = await seedGenesis();
     return NextResponse.json(result);

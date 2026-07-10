@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -9,6 +10,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ signals });
 }
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "MEMBER"); if (!_a.ok) return _a.res;
   const { projectId, type, source, payload, sentiment, impact } = await req.json();
   if (!type || !source) return NextResponse.json({ error: "type and source required" }, { status: 400 });
   const signal = await db.realitySignal.create({ data: { projectId: projectId ?? null, type, source, payload: JSON.stringify(payload ?? {}), sentiment: sentiment ?? 0, impact: impact ?? "UNKNOWN" } });

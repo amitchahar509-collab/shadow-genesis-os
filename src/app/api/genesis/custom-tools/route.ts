@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { db } from "@/lib/db";
 export async function GET() { const tools = await db.customTool.findMany({ orderBy: [{ isBuiltin: "desc" }, { name: "asc" }] }); return NextResponse.json({ tools }); }
 export async function POST(req: NextRequest) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const { key, name, description, operations, permissions } = await req.json();
   if (!key || !name || !description) return NextResponse.json({ error: "key, name, description required" }, { status: 400 });
   const existing = await db.customTool.findUnique({ where: { key } });

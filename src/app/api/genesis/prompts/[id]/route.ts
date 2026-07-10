@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardWrite } from "@/lib/api-guard";
 import { activateVersion, recordOutcome } from "@/lib/genesis/agent-runtime/improvement/prompts";
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const _a = await guardWrite(req, "ADMIN"); if (!_a.ok) return _a.res;
   const { id } = await params;
   const body = await req.json();
   if (body.action === "activate") { const p = await activateVersion(id); if (!p) return NextResponse.json({ error: "not found" }, { status: 404 }); return NextResponse.json({ prompt: p }); }
