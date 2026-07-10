@@ -35,10 +35,16 @@ test("the intelligence stack discriminates correctly (heuristic mode still passe
 }, 60_000);
 
 test("honesty: heuristic mode reports 0 tokens (no fabricated cost)", async () => {
+  // deterministically test heuristic mode: clear every provider key for this run
+  const provKeys = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OLLAMA_HOST", "ZAI_API_KEY"];
+  const savedProv = Object.fromEntries(provKeys.map((k) => [k, process.env[k]]));
+  for (const k of provKeys) delete process.env[k];
+  try {
   const r = await runBenchmark({ suite: "intelligence" });
-  expect(r.mode).toBe("HEURISTIC"); // no key in tests
+  expect(r.mode).toBe("HEURISTIC"); // no provider keys
   expect(r.tokensUsed).toBe(0);
   for (const t of r.results) expect(t.ms).toBeGreaterThanOrEqual(0); // real timings
+  } finally { for (const k of provKeys) { if (savedProv[k] !== undefined) process.env[k] = savedProv[k]!; } }
 }, 60_000);
 
 test("trend: multiple runs accumulate and are returned newest-first", async () => {

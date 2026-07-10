@@ -3,7 +3,7 @@
 import { test, expect, afterEach } from "bun:test";
 import { getProviderStatus, checkProvider } from "@/lib/genesis/agent-runtime/provider";
 
-const KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "ZAI_API_KEY", "GENESIS_LLM_MODEL"] as const;
+const KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OLLAMA_HOST", "ZAI_API_KEY", "GENESIS_LLM_MODEL"] as const;
 const saved: Record<string, string | undefined> = {};
 for (const k of KEYS) saved[k] = process.env[k];
 function clearKeys() { for (const k of KEYS) delete process.env[k]; }

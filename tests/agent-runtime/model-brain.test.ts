@@ -8,7 +8,7 @@ import { runModelDuel, runModelBenchmark, STANDARD_DUELS } from "@/lib/genesis/a
 import { SEAT_MODELS, BOARD } from "@/lib/genesis/agent-runtime/boardroom";
 import type { LlmOptions } from "@/lib/genesis/agent-runtime/types";
 
-const KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "ZAI_API_KEY", "PREMIUM_MODE"] as const;
+const KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OLLAMA_HOST", "ZAI_API_KEY", "PREMIUM_MODE"] as const;
 const saved: Record<string, string | undefined> = {};
 for (const k of KEYS) saved[k] = process.env[k];
 function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of on) process.env[k] = "sk-test"; process.env.PREMIUM_MODE = "true"; /* these suites assert PREMIUM ranking */ }

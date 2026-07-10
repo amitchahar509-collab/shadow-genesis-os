@@ -59,8 +59,8 @@ export const FREE_SEED: (SeedProfile & { free: true })[] = [
 /** Offline/free dev mode — Gemini's DIRECT API free tier (AI Studio key, no card).
  *  Model ids are direct-API names; GEMINI_MODEL env overrides the default. */
 export const GEMINI_SEED: (SeedProfile & { free: true })[] = [
-  { modelId: "gemini-3.5-flash", family: "GEMINI", provider: "gemini" as never, name: "Gemini 3.5 Flash (direct, free tier)", contextLength: 1_000_000, promptPrice: 0, completionPrice: 0, reasoningTier: 80, codingTier: 74, researchTier: 90, strengths: ["long context", "free tier", "speed"], weaknesses: ["free-tier RPM caps"], tags: ["free", "gemini-direct", "long-context"], free: true },
-  { modelId: "gemini-3.1-flash-lite", family: "GEMINI", provider: "gemini" as never, name: "Gemini 3.1 Flash Lite (direct, free tier)", contextLength: 1_000_000, promptPrice: 0, completionPrice: 0, reasoningTier: 62, codingTier: 58, researchTier: 72, strengths: ["free tier", "speed"], weaknesses: ["depth"], tags: ["free", "gemini-direct", "mini"], free: true },
+  { modelId: "gemini-flash-latest", family: "GEMINI", provider: "gemini" as never, name: "Gemini Flash latest (direct, free tier)", contextLength: 1_000_000, promptPrice: 0, completionPrice: 0, reasoningTier: 80, codingTier: 74, researchTier: 90, strengths: ["long context", "free tier", "speed"], weaknesses: ["free-tier RPM caps"], tags: ["free", "gemini-direct", "long-context"], free: true },
+  { modelId: "gemini-flash-lite-latest", family: "GEMINI", provider: "gemini" as never, name: "Gemini Flash Lite latest (direct, free tier)", contextLength: 1_000_000, promptPrice: 0, completionPrice: 0, reasoningTier: 62, codingTier: 58, researchTier: 72, strengths: ["free tier", "speed"], weaknesses: ["depth"], tags: ["free", "gemini-direct", "mini"], free: true },
 ];
 
 /** FREE_GENESIS_MODE is the DEFAULT: premium (credit-burning) models route only

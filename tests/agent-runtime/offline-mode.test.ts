@@ -27,7 +27,7 @@ test("availableProviders detects gemini (key) and ollama (host)", () => {
 });
 
 test("gemini free-tier rows are seeded, flagged free, provider 'gemini'", async () => {
-  const g = await db.modelRegistry.findUnique({ where: { modelId: "gemini-3.5-flash" } });
+  const g = await db.modelRegistry.findUnique({ where: { modelId: "gemini-flash-latest" } });
   expect(g).not.toBeNull();
   expect(g!.free).toBe(true);
   expect(g!.provider).toBe("gemini");
@@ -62,7 +62,7 @@ test("ollama is optional: appears (last) only when OLLAMA_HOST is set", async ()
 test("static baseline (registry-empty path) is also gemini-first in free mode", () => {
   env({ GEMINI_API_KEY: "AIza-test", OPENROUTER_API_KEY: "sk-or-test" });
   const chain = resolveChain("RESEARCH");
-  expect(chain[0]).toEqual({ provider: "gemini", model: "gemini-3.5-flash" });
+  expect(chain[0]).toEqual({ provider: "gemini", model: "gemini-flash-latest" });
   for (const h of chain) expect(h.model.endsWith(":free") || h.model.startsWith("gemini-") || h.model.startsWith("ollama:")).toBe(true);
 });
 
@@ -74,7 +74,7 @@ test("gemini-only setup works: no other keys needed for free development", async
 });
 
 test("$0 estimates for free brains — never invent a cost", () => {
-  expect(estimateCost("gemini-3.5-flash", 5000, 2000)).toBe(0);
+  expect(estimateCost("gemini-flash-latest", 5000, 2000)).toBe(0);
   expect(estimateCost("ollama:llama3.2", 5000, 2000)).toBe(0);
   expect(estimateCost("qwen/qwen3-coder:free", 5000, 2000)).toBe(0);
   expect(estimateCost("anthropic/claude-opus-4.8", 5000, 2000)).toBeGreaterThan(0); // premium still priced

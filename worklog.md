@@ -665,3 +665,19 @@ Work Log:
 Verification: tsc 0; eslint 0; 202/202 tests (was 192); next build compiles. LIVE: Gemini adapter makes a real HTTPS round-trip to generativelanguage.googleapis.com (dummy key → genuine Google 400 "API key not valid" — a valid free key returns completions); Ollama adapter correctly attempts localhost and reports no server (optional, none installed). Remaining to activate: user pastes a free AI Studio key into GEMINI_API_KEY (no card needed) — then the free debate runs Gemini-primary, sidestepping the saturated OpenRouter :free pools entirely.
 
 Commit: cycle 28 committed on branch main.
+
+---
+Task ID: 31
+Agent: Claude Code (Fable 5) — cycle 29: Gemini free tier LIVE — first real multi-seat board debate ($0)
+
+Task: Activate the offline/free mode with the user's real AI Studio key; run the live debate.
+
+Work Log:
+- Key verified: GET /v1beta/models → 200, 39 generateContent models. REAL direct-API ids differ from my guesses: gemini-2.5-flash/gemini-2.0-flash/gemini-flash-latest/gemini-flash-lite-latest (no gemini-3.5-flash — it accepted the id but returned empty output). Fixed seeds/chains/adapter-default to Google's ROLLING ALIASES (gemini-flash-latest, gemini-flash-lite-latest — future-proof, "never hardcode forever"); retired stale rows.
+- Live capacity scan (real calls): flash-latest TIMEOUT (busy), 2.5-flash 404, 2.0-flash/2.0-flash-lite 429 (free RPM), **gemini-flash-lite-latest → "OK"** — first genuine completion of the free-mode effort. Recorded the observed outcomes into the registry (honest: real measured results) → ranking re-ordered (MEMORY chain now leads with flash-lite).
+- ★ LIVE NINE-SEAT DEBATE (2.9min, $0, 3135 real tokens): 8/9 seats argued via REAL LLM reasoning (gemini-flash-lite-latest). Verdict NO_GO 90% (2GO/7NO, Risk veto) — REAL REASONING OVERTURNED THE HEURISTIC (rules said GO 67%): CFO/Investor on fragmented low-LTV freelance market + CAC, RISK on unauthorized-practice-of-law liability (substantive, un-prompted), COMPETITOR red-teaming "a feature, not a product", ENGINEER honestly dissenting GO on feasibility. All 9 seats rescued by Fallback 2.0 (preferred OR :free brains 429'd → gemini). Learning live: flash-latest rel→26.7 (timeouts), flash-lite rel→88.4/1.7s (successes). Only 1 distinct brain argued (OR :free still saturated) — multi-brain diversity awaits OR capacity or premium credits.
+- Suite fallout fixed (4 stale tests): with a real GEMINI key in .env, older suites leaked live calls / asserted pre-gemini behavior. (a) legacy callLlm now honors llmDisabled() (moved to types.ts, re-exported from router — no circular import); (b) provider/router/model-brain test env-lists clear GEMINI_API_KEY/OLLAMA_HOST too; (c) free-mode.test asserts the TRUE invariant (registry-flagged free) instead of a ":free" suffix — dynamically-discovered zero-priced models and gemini/ollama ids are legitimately free without the suffix; (d) orchestrator-handoff pickProvider test updated to the new order (anthropic→openrouter→gemini→ollama→zai→none); (e) benchmark honesty test clears provider envs itself (was order-dependent flaky).
+
+Verification: tsc 0; eslint 0; 202/202 tests; next build compiles. LIVE artifacts: BOARD-001118 BOARD_DECISION.md (8 LLM seats, per-seat model recorded), LlmUsage rows ($0, real tokens), registry reliability drift from real calls.
+
+Commit: cycle 29 committed on branch main.

@@ -38,14 +38,18 @@ test("free seeds cover the directive: qwen coder + reasoning + llama (verified $
 
 test("free mode: every chain for every capability contains ONLY $0 models", async () => {
   freeMode("OPENROUTER_API_KEY");
+  // the true invariant: every hop's model is registry-flagged free (":free" suffix,
+  // gemini free tier, local ollama, or a zero-priced discovered model)
+  const freeRows = new Set((await db.modelRegistry.findMany({ where: { free: true }, select: { modelId: true } })).map((r) => r.modelId));
+  const isFree = (m: string) => freeRows.has(m) || m.endsWith(":free") || m.startsWith("gemini-") || m.startsWith("ollama:");
   for (const agent of ["CEO", "BOARDROOM", "ENGINEERING", "RESEARCH", "MEMORY", "VENTURE"]) {
     const chain = await resolveChainDynamic(agent);
     expect(chain.length).toBeGreaterThan(0);
-    for (const hop of chain) expect(hop.model.endsWith(":free")).toBe(true);
+    for (const hop of chain) expect(isFree(hop.model)).toBe(true);
   }
   // static baseline too
   for (const agent of ["CEO", "ENGINEERING", "MEMORY"]) {
-    for (const hop of resolveChain(agent)) expect(hop.model.endsWith(":free")).toBe(true);
+    for (const hop of resolveChain(agent)) expect(isFree(hop.model)).toBe(true);
   }
 });
 
@@ -75,7 +79,8 @@ test("credit-burn guard: even an injected paid hop is refused in free mode", asy
   const invoke = async (_p: string, opts: LlmOptions) => { seen.push(opts.model!); return { text: "ok", promptTokens: 5, completionTokens: 5 }; };
   const r = await callLlmRouted({ system: "s", user: "u" }, { agent: "FREETEST_guard", _invoke: invoke as never });
   expect(r.ok).toBe(true);
-  for (const m of seen) expect(m.endsWith(":free")).toBe(true);
+  const freeRows2 = new Set((await db.modelRegistry.findMany({ where: { free: true }, select: { modelId: true } })).map((x) => x.modelId));
+  for (const m of seen) expect(freeRows2.has(m) || m.endsWith(":free") || m.startsWith("gemini-") || m.startsWith("ollama:")).toBe(true);
 });
 
 test("free mode board seats: every seat has a $0 brain and the debate spans ≥2 model families", () => {

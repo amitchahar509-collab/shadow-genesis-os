@@ -23,7 +23,7 @@
  */
 
 import { db } from "@/lib/db";
-import { callAnthropic, callOpenRouter, callGemini, callOllama, callZai, type LlmOptions, type LlmResult, type LlmProvider } from "../types";
+import { callAnthropic, callOpenRouter, callGemini, callOllama, callZai, llmDisabled, type LlmOptions, type LlmResult, type LlmProvider } from "../types";
 import { rankModels, emergencyModel, recordModelOutcome, premiumMode, type Importance } from "../model-registry";
 
 export type Capability = "REASONING" | "CODING" | "LONG_CONTEXT" | "CHEAP" | "DEFAULT";
@@ -123,28 +123,28 @@ const FREE_PROVIDER_RANK: Record<string, number> = { gemini: 0, openrouter: 1, o
 const OLLAMA_HOP = (): Hop => ({ provider: "ollama", model: `ollama:${process.env.OLLAMA_MODEL ?? "llama3.2"}` });
 const FREE_CHAINS_BASE: Record<Capability, Hop[]> = {
   REASONING: [
-    { provider: "gemini", model: "gemini-3.5-flash" },
+    { provider: "gemini", model: "gemini-flash-latest" },
     { provider: "openrouter", model: "nousresearch/hermes-3-llama-3.1-405b:free" },
     { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
   ],
   CODING: [
-    { provider: "gemini", model: "gemini-3.5-flash" },
+    { provider: "gemini", model: "gemini-flash-latest" },
     { provider: "openrouter", model: "qwen/qwen3-coder:free" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
   ],
   LONG_CONTEXT: [
-    { provider: "gemini", model: "gemini-3.5-flash" }, // 1M ctx, free tier
+    { provider: "gemini", model: "gemini-flash-latest" }, // 1M ctx, free tier
     { provider: "openrouter", model: "qwen/qwen3-coder:free" },
     { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
   ],
   CHEAP: [
-    { provider: "gemini", model: "gemini-3.1-flash-lite" },
+    { provider: "gemini", model: "gemini-flash-lite-latest" },
     { provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
   ],
   DEFAULT: [
-    { provider: "gemini", model: "gemini-3.5-flash" },
+    { provider: "gemini", model: "gemini-flash-latest" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
     { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
   ],
@@ -207,11 +207,7 @@ const realInvoke: Invoke = (provider, opts, timeoutMs) =>
 
 const TRANSIENT = /(_429|_5\d\d|timeout|timed out|aborted|ECONN|fetch failed|overloaded)/i;
 
-/** Tests must NEVER hit real model APIs unless a seam is injected (or explicitly
- *  opted in via GENESIS_TEST_ALLOW_LLM=1) — keeps the suite fast, free and honest. */
-export function llmDisabled(): boolean {
-  return process.env.NODE_ENV === "test" && process.env.GENESIS_TEST_ALLOW_LLM !== "1";
-}
+export { llmDisabled };
 
 // FREE_GENESIS_MODE belt-and-braces: a hop may only execute in free mode if the
 // model is verifiably $0 (":free" suffix, or registry-flagged free — cached 60s).

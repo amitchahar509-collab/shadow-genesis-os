@@ -58,7 +58,7 @@ test("reapOrphanedExecutions leaves fresh RUNNING rows alone", async () => {
 
 test("pickProvider prefers anthropic → openrouter → zai → none", async () => {
   const { pickProvider } = await import("@/lib/genesis/agent-runtime/types");
-  const keys = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "ZAI_API_KEY"] as const;
+  const keys = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "OLLAMA_HOST", "ZAI_API_KEY"] as const;
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   const clear = () => keys.forEach((k) => delete process.env[k]);
   try {
@@ -68,6 +68,13 @@ test("pickProvider prefers anthropic → openrouter → zai → none", async () 
     delete process.env.ANTHROPIC_API_KEY;
     expect(pickProvider()).toBe("openrouter");
     delete process.env.OPENROUTER_API_KEY;
+    process.env.GEMINI_API_KEY = "x";
+    expect(pickProvider()).toBe("gemini");
+    delete process.env.GEMINI_API_KEY;
+    process.env.OLLAMA_HOST = "http://127.0.0.1:11434";
+    expect(pickProvider()).toBe("ollama");
+    delete process.env.OLLAMA_HOST;
+    process.env.ZAI_API_KEY = "x";
     expect(pickProvider()).toBe("zai");
     delete process.env.ZAI_API_KEY;
     expect(pickProvider()).toBe("none");

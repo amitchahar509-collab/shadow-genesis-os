@@ -95,7 +95,7 @@ export async function callOpenRouter(opts: LlmOptions, timeoutMs: number): Promi
  *  FREE tier (AI Studio key, no card). Model names are the direct-API ids
  *  (e.g. "gemini-3.5-flash"), not OpenRouter slugs. */
 export async function callGemini(opts: LlmOptions, timeoutMs: number): Promise<RawLlmResult> {
-  const model = opts.model ?? process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+  const model = opts.model ?? process.env.GEMINI_MODEL ?? "gemini-flash-latest";
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${process.env.GEMINI_API_KEY!}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -145,10 +145,17 @@ export async function callZai(opts: LlmOptions, timeoutMs: number): Promise<RawL
   return { text, promptTokens: 0, completionTokens: 0 };
 }
 
+/** Tests must NEVER hit real model APIs (unless explicitly opted in via
+ *  GENESIS_TEST_ALLOW_LLM=1) — keeps the suite fast, free and honest. */
+export function llmDisabled(): boolean {
+  return process.env.NODE_ENV === "test" && process.env.GENESIS_TEST_ALLOW_LLM !== "1";
+}
+
 /** Safe LLM helper — provider-agnostic (Anthropic first, then z-ai), hard timeout, fail-fast.
  *  Preserved for backward compatibility; agents route through agent-runtime/router. */
 export async function callLlm(opts: LlmOptions): Promise<LlmResult> {
   const start = Date.now();
+  if (llmDisabled()) return { ok: false, text: "", error: "LLM_DISABLED_IN_TESTS: set GENESIS_TEST_ALLOW_LLM=1 for live tests", durationMs: 0 };
   const timeoutMs = opts.timeoutMs ?? 8_000;
   const provider = pickProvider();
   try {
