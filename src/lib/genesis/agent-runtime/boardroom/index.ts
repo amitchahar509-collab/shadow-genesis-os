@@ -68,7 +68,23 @@ export interface BoardArgumentResult {
   concerns: string[];
   confidence: number;
   mode: ArgumentMode;
+  model?: string; // which brain argued this seat (V9 multi-model debate)
 }
+
+/** V9 multi-brain debate: per-seat model preferences (resolved via the registry;
+ *  a seat falls back to the REASONING chain if its preferred brains are
+ *  unavailable). Different seats, different AI companies — a genuine debate. */
+export const SEAT_MODELS: Record<string, string[]> = {
+  FOUNDER: ["openai/gpt-5.5"],                                  // GPT reasoning
+  CEO: ["anthropic/claude-opus-4.8"],                            // Claude Opus
+  INVESTOR: ["anthropic/claude-opus-4.8"],                       // Claude Opus
+  CUSTOMER: ["google/gemini-3.5-flash"],                         // cheap, scalable
+  COMPETITOR: ["openai/gpt-5.5"],                                // GPT red team
+  CFO: ["anthropic/claude-sonnet-5"],
+  GROWTH: ["google/gemini-3.5-flash"],                           // Gemini
+  ENGINEER: ["z-ai/glm-4.7", "qwen/qwen3-coder"],                // GLM / Qwen Coder
+  RISK: ["anthropic/claude-opus-4.8", "openai/gpt-5.5"],         // Claude / GPT
+};
 
 export interface BoardDecisionResult {
   decisionId: string;
@@ -187,9 +203,10 @@ async function llmArgument(role: BoardRole, input: ConveneInput, timeoutMs: numb
     `Argue ONLY from your seat's incentives — do not try to be balanced, that is the board's job collectively. ` +
     `Respond ONLY with JSON: {"stance":"GO|NO_GO|ABSTAIN","argument":"2-4 sentences","concerns":["…"],"confidence":0-100}.`;
   const user = `Decision: ${input.question}\nTopic: ${input.topic}\n\nContext:\n${JSON.stringify(input.context ?? {}, null, 2)}`;
-  // Route through the multi-provider router — BOARDROOM → REASONING (strongest model).
+  // V9 multi-brain debate: each seat prefers its own brain (SEAT_MODELS); the
+  // router resolves via the registry and falls back to the REASONING chain.
   const { callLlmRouted } = await import("../router");
-  const r = await callLlmRouted({ system, user, temperature: 0.6, maxTokens: 500, timeoutMs }, { agent: "BOARDROOM" });
+  const r = await callLlmRouted({ system, user, temperature: 0.6, maxTokens: 500, timeoutMs }, { agent: "BOARDROOM", importance: "CRITICAL", preferModels: SEAT_MODELS[role.role] });
   if (!r.ok) return null;
   const parsed = parseJsonResponse(r.text) as { stance?: string; argument?: string; concerns?: string[]; confidence?: number } | null;
   if (!parsed?.argument) return null;
@@ -202,6 +219,7 @@ async function llmArgument(role: BoardRole, input: ConveneInput, timeoutMs: numb
     concerns: Array.isArray(parsed.concerns) ? parsed.concerns.filter((c) => typeof c === "string").slice(0, 5) : [],
     confidence: typeof parsed.confidence === "number" ? Math.max(0, Math.min(100, parsed.confidence)) : 60,
     mode: "LLM",
+    model: r.model,
   };
 }
 
@@ -280,7 +298,7 @@ function renderMarkdown(d: BoardDecisionResult, input: ConveneInput): string {
   lines.push(`## The board`);
   for (const a of d.arguments) {
     const icon = a.stance === "GO" ? "🟢" : a.stance === "NO_GO" ? "🔴" : "⚪";
-    lines.push(`### ${icon} ${a.title} — **${a.stance}** (${a.confidence}%)`);
+    lines.push(`### ${icon} ${a.title} — **${a.stance}** (${a.confidence}%)${a.model ? ` · 🧠 ${a.model}` : ""}`);
     lines.push(a.argument);
     if (a.concerns.length) lines.push(a.concerns.map((c) => `- ${c}`).join("\n"));
     lines.push("");
@@ -338,7 +356,7 @@ export async function conveneBoard(input: ConveneInput): Promise<BoardDecisionRe
         tally: JSON.stringify(tally), synthesis,
         conditions: JSON.stringify(conditions), risks: JSON.stringify(risks),
         mode, projectId: input.projectId ?? null, missionId: input.missionId ?? null, artifactPath,
-        arguments: { create: args.map((a) => ({ role: a.role, stance: a.stance, argument: a.argument, concerns: JSON.stringify(a.concerns), confidence: a.confidence, mode: a.mode })) },
+        arguments: { create: args.map((a) => ({ role: a.role, stance: a.stance, argument: a.argument, concerns: JSON.stringify(a.concerns), confidence: a.confidence, mode: a.mode, model: a.model ?? "" })) },
       },
     });
   } catch (e) {

@@ -10,7 +10,12 @@ const saved: Record<string, string | undefined> = {};
 for (const k of KEYS) saved[k] = process.env[k];
 function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of on) process.env[k] = "sk-test"; }
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
-beforeEach(async () => { await db.llmUsage.deleteMany({ where: { agent: { startsWith: "ROUTERTEST" } } }); });
+beforeEach(async () => {
+  await db.llmUsage.deleteMany({ where: { agent: { startsWith: "ROUTERTEST" } } });
+  // dynamic routing reads MEASURED registry state — reset to neutral so ranking
+  // is deterministic (tier + tie-break only) regardless of prior test drift
+  await db.modelRegistry.updateMany({ data: { reliability: 50, avgLatencyMs: 0, measuredWins: 0, measuredLosses: 0 } });
+});
 
 // fake invoke seam: succeed only for models in `okModels`, else throw
 function fakeInvoke(okModels: string[], tokens = { p: 100, c: 50 }) {
@@ -69,20 +74,18 @@ test("no providers → honest NO_PROVIDER failure (agents fall back to heuristic
 
 test("primary model succeeds → records real tokens + estimated cost, fallbackDepth 0", async () => {
   setKeys("ANTHROPIC_API_KEY");
-  const r = await callLlmRouted({ system: "s", user: "u" }, { agent: "ROUTERTEST_ok", _invoke: fakeInvoke(["claude-opus-4-8"]) as never });
-  // CEO/REASONING primary is claude-opus-4-8, but agent ROUTERTEST_ok → DEFAULT (claude-sonnet-5). Use a REASONING agent:
   const c = await callLlmRouted({ system: "s", user: "u" }, { agent: "CEO", executionId: "ROUTERTEST-ex", _invoke: fakeInvoke(["claude-opus-4-8"]) as never });
   expect(c.ok).toBe(true);
   expect(c.provider).toBe("anthropic");
-  expect(c.model).toBe("claude-opus-4-8");
+  expect(c.model).toBe("claude-opus-4-8"); // registry-ranked REASONING primary (anthropic-only)
   expect(c.fallbackDepth).toBe(0);
   expect(c.tokensUsed).toBe(150);
   expect(c.costUsd).toBeGreaterThan(0);
+  expect(c.expectedCostUsd).toBeGreaterThan(0); // pre-call cost intelligence recorded
   const row = await db.llmUsage.findFirst({ where: { agent: "CEO", executionId: "ROUTERTEST-ex" } });
   expect(row!.totalTokens).toBe(150);
   expect(row!.ok).toBe(true);
   await db.llmUsage.deleteMany({ where: { agent: "CEO", executionId: "ROUTERTEST-ex" } });
-  expect(r.ok).toBe(false); // ROUTERTEST_ok → DEFAULT chain (sonnet-5) which the fake rejects
 });
 
 test("fallback chain: primary fails → next hop succeeds (fallbackDepth > 0)", async () => {

@@ -23,6 +23,17 @@ export OPENROUTER_API_KEY=your-key-here    # OpenRouter (many models + cross-pro
 # Agents route per capability: CEO/Board→strongest reasoning, Engineering→best coding,
 # Research→long-context, Memory→cheap; a failed model falls through to the next provider.
 # GENESIS_LLM_MODEL only overrides the legacy callLlm() path; the router picks per agent.
+
+# V9 multi-brain layer — dynamic model registry + measured auto-selection:
+curl -X POST http://localhost:3000/api/genesis/models -H "Content-Type: application/json" -d '{"action":"seed"}'
+curl -X POST http://localhost:3000/api/genesis/models -H "Content-Type: application/json" -d '{"action":"sync"}'   # live catalog: availability + real prices
+curl "http://localhost:3000/api/genesis/models"                       # registry + live routing + usage/failures
+curl "http://localhost:3000/api/genesis/models?rank=CODING"           # measured ranking per capability
+# Model Arena (spends tokens; ADMIN): duels + weekly benchmark that updates rankings
+curl -X POST http://localhost:3000/api/genesis/models -H "Authorization: Bearer gk_..." \
+  -H "Content-Type: application/json" -d '{"action":"benchmark"}'
+# Boardroom seats debate on different brains (SEAT_MODELS): Founder→GPT, Investor→Opus,
+# Engineer→GLM/Qwen, Growth/Customer→Gemini, Risk→Claude/GPT — each argument records its model.
 # Check which mode you're in (DEGRADED/heuristic vs real reasoning) + self-test the adapter:
 #   curl http://localhost:3000/api/genesis/provider            # status + capability matrix
 #   curl -X POST http://localhost:3000/api/genesis/provider    # real round-trip through the adapter

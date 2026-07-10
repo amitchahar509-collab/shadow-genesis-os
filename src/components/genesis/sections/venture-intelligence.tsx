@@ -15,6 +15,7 @@ import { Marketplace } from "./marketplace";
 import { WorldScanner } from "./world-scanner";
 import { ProviderStatus } from "./provider-status";
 import { Plugins } from "./plugins";
+import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
   runId: string; status: string; focus: string | null; opportunityTitle: string | null;
@@ -76,6 +77,9 @@ export function VentureIntelligence() {
     <div className="space-y-4">
       {/* ===== LLM provider status (honest degradation) ===== */}
       <ProviderStatus />
+
+      {/* ===== Multi-brain model router ===== */}
+      <ModelCommandCenter />
 
       {/* ===== World scanner (discovery) ===== */}
       <WorldScanner />

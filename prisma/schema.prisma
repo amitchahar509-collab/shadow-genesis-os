@@ -608,6 +608,7 @@ model BoardArgument {
   concerns   String   @default("[]") // JSON string[]
   confidence Float    @default(50) // 0-100, this member's confidence in their own stance
   mode       String   @default("HEURISTIC") // LLM | HEURISTIC
+  model      String   @default("") // which brain argued this seat (V9 multi-model debate)
   createdAt  DateTime @default(now())
   decision   BoardDecision @relation(fields: [decisionId], references: [decisionId], onDelete: Cascade)
 
@@ -953,6 +954,49 @@ model ApiKey {
   @@index([hash])
 }
 
+// ============ V9 FRONTIER MULTI-BRAIN: dynamic model registry ============
+model ModelRegistry {
+  id              String   @id @default(cuid())
+  modelId         String   @unique // OpenRouter slug, e.g. anthropic/claude-opus-4.8
+  family          String   @default("OTHER") // GPT | CLAUDE | GEMINI | QWEN | GLM | DEEPSEEK | OTHER
+  name            String   @default("")
+  provider        String   @default("openrouter") // openrouter | anthropic (direct)
+  contextLength   Int      @default(0)
+  promptPrice     Float    @default(0) // USD per 1M prompt tokens (synced from catalog when available)
+  completionPrice Float    @default(0) // USD per 1M completion tokens
+  reasoningTier   Int      @default(0) // 0-100 curated capability estimate (editable, never fixed)
+  codingTier      Int      @default(0) // 0-100
+  researchTier    Int      @default(0) // 0-100 (long-context / extraction)
+  reliability     Float    @default(50) // 0-100 MEASURED: success rate of real calls (starts neutral)
+  avgLatencyMs    Int      @default(0) // MEASURED rolling average
+  measuredWins    Int      @default(0) // arena duel wins (real)
+  measuredLosses  Int      @default(0)
+  strengths       String   @default("[]") // JSON string[]
+  weaknesses      String   @default("[]")
+  tags            String   @default("[]")
+  active          Boolean  @default(true) // false = not available on the live catalog / retired
+  source          String   @default("seed") // seed | openrouter
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([family])
+  @@index([active])
+}
+
+model ModelDuel {
+  id         String   @id @default(cuid())
+  duelId     String   @unique // DUEL-000001
+  task       String  // the prompt/task both models answered
+  category   String   @default("GENERAL") // CODING | RESEARCH | BUSINESS | STRATEGY | PLANNING | DEBUGGING | GENERAL
+  entries    String   @default("[]") // JSON [{model, ok, latencyMs, tokens, costUsd, answer, score}]
+  winner     String? // modelId of the judged winner
+  judgedBy   String   @default("RULE") // RULE (checkable answer/speed/cost) | LLM
+  rationale  String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([category])
+}
+
 // ============ MULTI-PROVIDER MODEL ROUTER: real token + estimated cost tracking ============
 model LlmUsage {
   id               String   @id @default(cuid())
@@ -964,6 +1008,9 @@ model LlmUsage {
   completionTokens Int      @default(0)
   totalTokens      Int      @default(0)
   costUsd          Float    @default(0) // ESTIMATE from the price table (real tokens × published rates)
+  expectedCostUsd  Float    @default(0) // pre-call estimate (cost intelligence)
+  importance       String   @default("NORMAL") // LOW | NORMAL | CRITICAL
+  retries          Int      @default(0) // same-model retry count (Fallback 2.0)
   ok               Boolean  @default(true)
   fallbackDepth    Int      @default(0) // 0 = primary model succeeded; >0 = a fallback was used
   durationMs       Int      @default(0)
