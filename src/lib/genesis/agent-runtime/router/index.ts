@@ -38,32 +38,34 @@ export function capabilityFor(agent: string): Capability {
 
 interface Hop { provider: RoutableProvider; model: string }
 
-/** Fallback chains — each ends in a cheap model (primary → next provider → cheap fallback). */
+/** Fallback chains — OpenRouter-primary (verified slugs), then optional direct
+ *  Anthropic, ending in a cheap model. A hop is only attempted if its provider
+ *  has a configured key, so OpenRouter-only setups skip the anthropic-direct hops. */
 const CHAINS: Record<Capability, Hop[]> = {
   REASONING: [
+    { provider: "openrouter", model: "anthropic/claude-opus-4.8" },
     { provider: "anthropic", model: "claude-opus-4-8" },
-    { provider: "openrouter", model: "anthropic/claude-opus-4" },
     { provider: "openrouter", model: "openai/gpt-4o-mini" },
   ],
   CODING: [
+    { provider: "openrouter", model: "anthropic/claude-sonnet-5" },
     { provider: "anthropic", model: "claude-sonnet-5" },
-    { provider: "openrouter", model: "anthropic/claude-sonnet-4" },
     { provider: "openrouter", model: "qwen/qwen-2.5-coder-32b-instruct" },
     { provider: "openrouter", model: "openai/gpt-4o-mini" },
   ],
   LONG_CONTEXT: [
-    { provider: "openrouter", model: "google/gemini-2.0-flash-001" },
-    { provider: "anthropic", model: "claude-sonnet-5" },
+    { provider: "openrouter", model: "google/gemini-3.5-flash" },
+    { provider: "openrouter", model: "anthropic/claude-sonnet-5" },
     { provider: "openrouter", model: "openai/gpt-4o-mini" },
   ],
   CHEAP: [
     { provider: "openrouter", model: "openai/gpt-4o-mini" },
-    { provider: "openrouter", model: "google/gemini-2.0-flash-001" },
+    { provider: "openrouter", model: "google/gemini-3.1-flash-lite" },
     { provider: "anthropic", model: "claude-haiku-4-5-20251001" },
   ],
   DEFAULT: [
+    { provider: "openrouter", model: "anthropic/claude-sonnet-5" },
     { provider: "anthropic", model: "claude-sonnet-5" },
-    { provider: "openrouter", model: "anthropic/claude-sonnet-4" },
     { provider: "openrouter", model: "openai/gpt-4o-mini" },
   ],
 };
@@ -73,11 +75,13 @@ const MODEL_PRICES: Record<string, { in: number; out: number }> = {
   "claude-opus-4-8": { in: 15, out: 75 },
   "claude-sonnet-5": { in: 3, out: 15 },
   "claude-haiku-4-5-20251001": { in: 0.8, out: 4 },
-  "anthropic/claude-opus-4": { in: 15, out: 75 },
-  "anthropic/claude-sonnet-4": { in: 3, out: 15 },
+  "anthropic/claude-opus-4.8": { in: 15, out: 75 },
+  "anthropic/claude-sonnet-5": { in: 3, out: 15 },
+  "anthropic/claude-haiku-4.5": { in: 0.8, out: 4 },
   "openai/gpt-4o": { in: 2.5, out: 10 },
   "openai/gpt-4o-mini": { in: 0.15, out: 0.6 },
-  "google/gemini-2.0-flash-001": { in: 0.1, out: 0.4 },
+  "google/gemini-3.5-flash": { in: 0.15, out: 0.6 },
+  "google/gemini-3.1-flash-lite": { in: 0.05, out: 0.2 },
   "qwen/qwen-2.5-coder-32b-instruct": { in: 0.9, out: 0.9 },
 };
 export function estimateCost(model: string, promptTokens: number, completionTokens: number): number {

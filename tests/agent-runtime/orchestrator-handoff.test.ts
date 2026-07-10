@@ -56,19 +56,24 @@ test("reapOrphanedExecutions leaves fresh RUNNING rows alone", async () => {
   await db.agentExecution.deleteMany({ where: { executionId: execId } });
 });
 
-test("pickProvider prefers anthropic, then zai, else none", async () => {
+test("pickProvider prefers anthropic → openrouter → zai → none", async () => {
   const { pickProvider } = await import("@/lib/genesis/agent-runtime/types");
-  const savedA = process.env.ANTHROPIC_API_KEY, savedZ = process.env.ZAI_API_KEY;
+  const keys = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "ZAI_API_KEY"] as const;
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const clear = () => keys.forEach((k) => delete process.env[k]);
   try {
-    process.env.ANTHROPIC_API_KEY = "test-key"; process.env.ZAI_API_KEY = "test-key";
+    clear();
+    process.env.ANTHROPIC_API_KEY = "x"; process.env.OPENROUTER_API_KEY = "x"; process.env.ZAI_API_KEY = "x";
     expect(pickProvider()).toBe("anthropic");
     delete process.env.ANTHROPIC_API_KEY;
+    expect(pickProvider()).toBe("openrouter");
+    delete process.env.OPENROUTER_API_KEY;
     expect(pickProvider()).toBe("zai");
     delete process.env.ZAI_API_KEY;
     expect(pickProvider()).toBe("none");
   } finally {
-    if (savedA !== undefined) process.env.ANTHROPIC_API_KEY = savedA;
-    if (savedZ !== undefined) process.env.ZAI_API_KEY = savedZ;
+    clear();
+    for (const k of keys) if (saved[k] !== undefined) process.env[k] = saved[k]!;
   }
 });
 

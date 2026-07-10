@@ -87,11 +87,12 @@ test("primary model succeeds → records real tokens + estimated cost, fallbackD
 
 test("fallback chain: primary fails → next hop succeeds (fallbackDepth > 0)", async () => {
   setKeys("ANTHROPIC_API_KEY", "OPENROUTER_API_KEY");
-  // CODING chain: [anthropic claude-sonnet-5, openrouter anthropic/claude-sonnet-4, …]. Fail the first, succeed the second.
-  const r = await callLlmRouted({ system: "s", user: "u" }, { agent: "ENGINEERING", _invoke: fakeInvoke(["anthropic/claude-sonnet-4"]) as never });
+  // CODING chain: [openrouter anthropic/claude-sonnet-5, anthropic claude-sonnet-5, …].
+  // Fail the openrouter primary; succeed the direct-anthropic 2nd hop.
+  const r = await callLlmRouted({ system: "s", user: "u" }, { agent: "ENGINEERING", _invoke: fakeInvoke(["claude-sonnet-5"]) as never });
   expect(r.ok).toBe(true);
-  expect(r.provider).toBe("openrouter");
-  expect(r.model).toBe("anthropic/claude-sonnet-4");
+  expect(r.provider).toBe("anthropic");
+  expect(r.model).toBe("claude-sonnet-5");
   expect(r.fallbackDepth).toBe(1); // used the 2nd hop
 });
 
@@ -111,7 +112,7 @@ test("routingTable exposes per-agent chains with availability flags", () => {
   const table = routingTable();
   const ceo = table.find((t) => t.agent === "CEO")!;
   expect(ceo.capability).toBe("REASONING");
-  expect(ceo.chain[0].available).toBe(true); // anthropic hop available
+  expect(ceo.chain.some((h) => h.available)).toBe(true); // the anthropic-direct hop is available
   expect(ceo.chain.some((h) => h.provider === "openrouter" && !h.available)).toBe(true); // openrouter hops flagged unavailable
 });
 

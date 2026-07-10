@@ -1,0 +1,4 @@
+# Bun config. Tests preload a setup that clears LLM provider keys so the suite is
+# deterministic, offline, and never spends tokens — regardless of a real .env.
+[test]
+preload = ["./tests/setup.ts"]

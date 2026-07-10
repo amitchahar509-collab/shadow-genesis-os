@@ -592,3 +592,20 @@ Verification: tsc 0 errors; eslint 0 errors; 173/173 tests (was 162); next build
 Note: the user set GENESIS_LLM_MODEL=claude-opus-4-8 in .env but ANTHROPIC_API_KEY is still empty, so the stack remains in heuristic mode until a real key (Anthropic or OpenRouter) is added. Router activates the moment either key is set.
 
 Commit: cycle 25 committed on branch main.
+
+---
+Task ID: 28
+Agent: Claude Code (Opus 4.8) — cycle 25b: OpenRouter live activation + verified model slugs + test determinism
+
+Task: Wire in a real OPENROUTER_API_KEY as primary provider (no ANTHROPIC required). Verify load/status/routing/self-test/fallback/cost. Do not print secrets.
+
+Work Log:
+- Confirmed OPENROUTER_API_KEY loads from .env (untracked); ANTHROPIC not required. Provider status ACTIVE, providers=[openrouter], mode=LLM.
+- LIVE verification (real OpenRouter calls, tiny prompts): per-agent routing — CEO/Board→anthropic/claude-opus-4.8, Engineering→coding, Research→google/gemini-3.5-flash, Memory→openai/gpt-4o-mini. Self-test round-trip OK ("OK", ~2s). Real routed calls returned real reasoning (CEO "Blue"/"Depends what?", Research "Earth", Memory "42"). Fallback proven live twice (MEMORY primary forced down → gemini-3.1-flash-lite responded "Apple" at depth 1; Engineering claude-sonnet-5-via-OR hiccup → qwen-2.5-coder at depth 1). Token+cost tracked (LlmUsage): opus 27tok/$0.000825, gpt-4o-mini 25tok/$0.000005, etc.
+- Fixed model slugs to VERIFIED OpenRouter catalog IDs (queried the live /models endpoint, 347 models): chains reordered OpenRouter-primary (honoring "OpenRouter as primary") — REASONING anthropic/claude-opus-4.8, CODING anthropic/claude-sonnet-5→qwen-2.5-coder, LONG_CONTEXT google/gemini-3.5-flash, CHEAP openai/gpt-4o-mini→gemini-3.1-flash-lite; updated MODEL_PRICES. Stale gemini-2.0-flash-001 removed (not in catalog).
+- Test determinism: the real key in .env leaked into the suite (Prisma Client re-loads .env on init, re-adding provider keys the preload deleted) — agents made real calls (314s, non-deterministic, token spend). Fixed with bunfig.toml [test] preload=tests/setup.ts that SETS provider keys to "" (falsy but "set", so dotenv/Prisma won't repopulate). Suite back to 54s, 173/173, zero real calls/spend. Updated the outdated pickProvider test (anthropic→openrouter→zai→none) + router routingTable/fallback tests for OpenRouter-primary order.
+- SECURITY: a debug probe I ran printed the OpenRouter key to the log → advised the user to ROTATE it. No secret is in any tracked file (git grep clean); .env stays untracked; the key is never stored in the DB.
+
+Verification: tsc 0; eslint 0; 173/173 tests (deterministic, offline); live OpenRouter activation proven end-to-end (routing + self-test + fallback + cost). CI unaffected (no keys in CI env; empty-string preload harmless).
+
+Commit: cycle 25b committed on branch main.
