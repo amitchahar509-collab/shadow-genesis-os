@@ -14,6 +14,7 @@ import { DemandGraph } from "./demand";
 import { Marketplace } from "./marketplace";
 import { WorldScanner } from "./world-scanner";
 import { ProviderStatus } from "./provider-status";
+import { Plugins } from "./plugins";
 
 interface VentureRun {
   runId: string; status: string; focus: string | null; opportunityTitle: string | null;
@@ -196,6 +197,9 @@ export function VentureIntelligence() {
 
       {/* ===== App marketplace ===== */}
       <Marketplace />
+
+      {/* ===== Plugin / skill marketplace ===== */}
+      <Plugins />
 
       {/* ===== Agent competition ===== */}
       <AgentArena />

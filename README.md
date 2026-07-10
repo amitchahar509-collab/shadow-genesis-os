@@ -186,6 +186,14 @@ curl "http://localhost:3000/api/genesis/world?limit=10"   # the WORLD_PROBLEM_GR
 curl -X POST http://localhost:3000/api/genesis/world \
   -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" -d '{"action":"promote","problemId":"WP-000001"}'
 
+# Plugin / Skill Marketplace — installable agents/tools/workflows, ranked by trust from REAL usage
+curl -X POST http://localhost:3000/api/genesis/plugins \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" -d '{"action":"sync"}'   # publish plugins for real artifacts
+curl "http://localhost:3000/api/genesis/plugins?refresh=1"   # ranked by trust (performance from real executions)
+# install / version / benchmark a plugin:
+curl -X POST http://localhost:3000/api/genesis/plugins \
+  -H "Authorization: Bearer gk_..." -H "Content-Type: application/json" -d '{"action":"install","pluginId":"PLG-000024"}'
+
 # Check orchestrator status
 curl http://localhost:3000/api/genesis/orchestrator/status
 

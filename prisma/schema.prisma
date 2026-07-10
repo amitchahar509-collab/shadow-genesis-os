@@ -720,6 +720,47 @@ model ApprovalRequest {
   @@index([status])
 }
 
+// ============ V8 — PLUGIN / SKILL MARKETPLACE (G11): installable agents/tools/workflows over real artifacts ============
+model Plugin {
+  id               String   @id @default(cuid())
+  pluginId         String   @unique // PLG-000001
+  kind             String   // AGENT | TOOL | WORKFLOW
+  refKey           String   // wraps a REAL artifact: agent name | AgentTemplate.key | tool name | CustomTool.key | workflow id
+  name             String
+  description      String   @default("")
+  version          Int      @default(1)
+  source           String   @default("BUILTIN") // BUILTIN | EVOLUTION | USER
+  status           String   @default("LISTED") // LISTED | INSTALLED | DEPRECATED
+  installCount     Int      @default(0)
+  invocations      Int      @default(0) // from real AgentExecution / ToolCall
+  successes        Int      @default(0)
+  failures         Int      @default(0)
+  performanceScore Float    @default(0) // 0-100, real success rate
+  benchmarkScore   Float    @default(0) // 0-100, last on-demand measurement (0 = unbenchmarked)
+  trustScore       Float    @default(0) // 0-100, composite (source + performance × volume-confidence + benchmark)
+  benchmarkedAt    DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  versions         PluginVersion[]
+
+  @@unique([kind, refKey])
+  @@index([kind])
+  @@index([status])
+}
+
+model PluginVersion {
+  id         String   @id @default(cuid())
+  pluginId   String
+  version    Int
+  changelog  String   @default("")
+  config     String   @default("{}") // snapshot of the wrapped artifact's config
+  active     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  plugin     Plugin   @relation(fields: [pluginId], references: [pluginId], onDelete: Cascade)
+
+  @@unique([pluginId, version])
+}
+
 // ============ V8 — WORLD SCANNER (G1): discover problems from real accumulated intelligence ============
 model WorldProblem {
   id                  String   @id @default(cuid())

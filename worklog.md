@@ -507,3 +507,28 @@ Verification: tsc 0 errors; eslint 0 errors; 149/149 tests (was 144); next build
 Re-audit: silent degradation closed. The single highest-value action is now operational, not code — set a valid ANTHROPIC_API_KEY to activate real reasoning + web scanning across the whole stack. Remaining code work is hardening: guard rollout to remaining write routes + usage limits; G11 plugin perf tracking; standalone-build/junction env debt.
 
 Commit: cycle 21 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 25
+Agent: Claude Code (Opus 4.8) — cycle 22: Plugin/Skill Marketplace (G11)
+
+Task: Extend AgentTemplate + CustomTool into a real installable ecosystem — plugins, performance ranking, trust scores, usage metrics, versioning, benchmark integration. No rebuild, no fake modules.
+
+Work Log:
+- Phase 0 audit: AgentTemplate (evolution writes specialists) + CustomTool exist with basic CRUD; real usage lives in AgentExecution (per agent) + ToolCall (per tool). Base 16 agents / 7 tools are code-registered (referenced by name), not rows.
+- Models: Plugin (kind AGENT/TOOL/WORKFLOW, refKey → real artifact, version, source BUILTIN/EVOLUTION/USER, status, installCount, invocations/successes/failures, performanceScore, benchmarkScore, trustScore, @@unique[kind,refKey]) + PluginVersion (versioning).
+- plugins module (agent-runtime/plugins/index.ts):
+  * artifactExists — a plugin can ONLY wrap a REAL module: AGENT = registered agent name OR AgentTemplate.key; TOOL = base tool name OR CustomTool.key; WORKFLOW = known list. Publishing a non-existent module is refused (no fake plugins).
+  * publishPlugin (idempotent per kind+refKey, creates v1) / syncFromRegistry (auto-publishes plugins for all registered agents + base tools + evolution AgentTemplates + CustomTools).
+  * refreshStats — reads REAL AgentExecution (agents) / ToolCall (tools) → invocations/successes/failures/performanceScore. Nothing fabricated.
+  * computeTrust = SOURCE_BASELINE*0.4 + performance × volumeConfidence(min(runs/20,1)) *0.45 + benchmark*0.15 — unproven plugins (0 usage) are low-trust until they earn it.
+  * installPlugin (count + INSTALLED), publishVersion (bump + activate latest only), benchmarkPlugin (on-demand: computeAgentMetrics real 90-day window → benchmarkScore + trust), rankPlugins (by trust, optional refresh).
+- API /api/genesis/plugins (GET ranked/by-id, POST sync|publish|install|version|benchmark|refresh — MEMBER-gated + audit). Dashboard: Plugin Marketplace panel (ranked table: kind/source/version/runs/perf/trust bar/installs + sync button) in the Venture Intelligence tab.
+- Honesty: plugins wrap only real artifacts; performance/usage from real execution rows; trust damped by real usage volume; freshly published = unproven/low-trust; benchmark = real measured metric.
+- Tests (9): artifactExists + publish refuses non-existent module; publish idempotent per kind+refKey; wraps a real evolution AgentTemplate; refreshStats reads real executions (8/10 → perf 80); trust unproven << proven + volume damping; install increments+INSTALLED; versioning bumps + single active; benchmark records real measured score + benchmarkedAt; sync populates from real registry (VENTURE agent + browser tool present).
+
+Verification: tsc 0 errors; eslint 0 errors; 158/158 tests (was 149); next build compiles /api/genesis/plugins. E2E: syncFromRegistry published 23 plugins from real artifacts; rankPlugins(refresh) is usage-driven — VENTURE (12 real runs, perf 100) trust 53 tops; CUSTOMER (4) 35; single-run agents (CEO/RESEARCH/GROWTH) 28; terminal tool (4 runs, perf 50) 31 — unproven/low-usage rank low honestly. Full lifecycle: install CUSTOMER (count 1, INSTALLED) → publishVersion v2 → benchmarkPlugin 100/100 (real metric) → trust 35→50, benchmarkedAt set. All six directive requirements (installable, ranking, trust, usage, versioning, benchmark) demonstrated. (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Re-audit: every V8 gap (13/13) + both force-multipliers (LLM-path visibility, plugin marketplace) delivered. Remaining is operational/hardening ONLY: set a valid ANTHROPIC_API_KEY (real reasoning + web scanning — operational); guard rollout to remaining write routes + usage limits; CI workflow + standalone-build/junction env debt. The autonomous venture network is functionally complete and honest end-to-end.
+
+Commit: cycle 22 committed on branch v6-intelligence-layers.
