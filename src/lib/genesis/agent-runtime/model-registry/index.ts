@@ -56,6 +56,13 @@ export const FREE_SEED: (SeedProfile & { free: true })[] = [
   { modelId: "meta-llama/llama-3.2-3b-instruct:free", family: "LLAMA", provider: "openrouter", name: "Llama 3.2 3B (free)", contextLength: 131_072, promptPrice: 0, completionPrice: 0, reasoningTier: 45, codingTier: 40, researchTier: 42, strengths: ["speed", "$0"], weaknesses: ["depth"], tags: ["free", "mini"], free: true },
 ];
 
+/** Offline/free dev mode — Gemini's DIRECT API free tier (AI Studio key, no card).
+ *  Model ids are direct-API names; GEMINI_MODEL env overrides the default. */
+export const GEMINI_SEED: (SeedProfile & { free: true })[] = [
+  { modelId: "gemini-3.5-flash", family: "GEMINI", provider: "gemini" as never, name: "Gemini 3.5 Flash (direct, free tier)", contextLength: 1_000_000, promptPrice: 0, completionPrice: 0, reasoningTier: 80, codingTier: 74, researchTier: 90, strengths: ["long context", "free tier", "speed"], weaknesses: ["free-tier RPM caps"], tags: ["free", "gemini-direct", "long-context"], free: true },
+  { modelId: "gemini-3.1-flash-lite", family: "GEMINI", provider: "gemini" as never, name: "Gemini 3.1 Flash Lite (direct, free tier)", contextLength: 1_000_000, promptPrice: 0, completionPrice: 0, reasoningTier: 62, codingTier: 58, researchTier: 72, strengths: ["free tier", "speed"], weaknesses: ["depth"], tags: ["free", "gemini-direct", "mini"], free: true },
+];
+
 /** FREE_GENESIS_MODE is the DEFAULT: premium (credit-burning) models route only
  *  when PREMIUM_MODE=true. Never burn credits accidentally. */
 export function premiumMode(): boolean {
@@ -64,7 +71,17 @@ export function premiumMode(): boolean {
 
 export async function seedRegistry(): Promise<number> {
   let n = 0;
-  for (const p of [...CURATED_SEED, ...FREE_SEED]) {
+  // Optional local Ollama: register its model only when the host is configured.
+  if (process.env.OLLAMA_HOST) {
+    const m = process.env.OLLAMA_MODEL ?? "llama3.2";
+    await db.modelRegistry.upsert({
+      where: { modelId: `ollama:${m}` },
+      create: { modelId: `ollama:${m}`, family: "LLAMA", provider: "ollama", name: `Ollama ${m} (local)`, contextLength: 32_768, promptPrice: 0, completionPrice: 0, reasoningTier: 55, codingTier: 55, researchTier: 50, free: true, active: true, source: "seed", strengths: JSON.stringify(["offline", "$0", "private"]), weaknesses: JSON.stringify(["local hardware limits"]), tags: JSON.stringify(["free", "local", "offline"]) },
+      update: { free: true },
+    });
+    n++;
+  }
+  for (const p of [...CURATED_SEED, ...FREE_SEED, ...GEMINI_SEED]) {
     const free = "free" in p ? true : false;
     await db.modelRegistry.upsert({
       where: { modelId: p.modelId },

@@ -69,7 +69,7 @@ export function getProviderStatus(): ProviderStatus {
     llmGated: LLM_GATED.map((g) => ({ ...g, mode: reasoningMode })),
     procedural: PROCEDURAL,
     routing: routingTable(),
-    hint: degraded ? "Set ANTHROPIC_API_KEY and/or OPENROUTER_API_KEY to activate real reasoning across all gates." : "Providers active. Add OPENROUTER_API_KEY for cross-provider fallback + more model choices.",
+    hint: degraded ? "Set GEMINI_API_KEY (free tier), OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OLLAMA_HOST (local) to activate real reasoning." : "Providers active. Free mode order: Gemini free tier → OpenRouter :free → local Ollama; PREMIUM_MODE=true unlocks frontier models.",
   };
 }
 

@@ -24,11 +24,15 @@ export OPENROUTER_API_KEY=your-key-here    # OpenRouter (many models + cross-pro
 # Research→long-context, Memory→cheap; a failed model falls through to the next provider.
 # GENESIS_LLM_MODEL only overrides the legacy callLlm() path; the router picks per agent.
 
-# FREE_GENESIS_MODE (default): only $0 ":free" models route — credits are NEVER
-# burned accidentally. Enable premium (Opus/GPT/Gemini Pro) explicitly:
+# FREE_GENESIS_MODE (default): only $0 models route — credits are NEVER burned
+# accidentally. Free provider order: Gemini free tier → OpenRouter :free → local Ollama.
+export GEMINI_API_KEY=your-free-key    # PRIMARY free brain — https://aistudio.google.com/apikey (no card)
+# export OLLAMA_HOST=http://127.0.0.1:11434   # optional fully-offline local models (ollama.com)
+# export OLLAMA_MODEL=llama3.2
+# Enable premium (Opus/GPT/Gemini Pro) explicitly — requires purchased credits:
 #   export PREMIUM_MODE=true
-# Free seats still debate multi-brain (Hermes-405B / Qwen3 / Llama). Note: free
-# pools are shared community capacity — expect intermittent 429s at peak.
+# Free seats still debate multi-brain. Note: OpenRouter :free pools are shared
+# community capacity — expect intermittent 429s at peak (Gemini free tier is steadier).
 
 # V9 multi-brain layer — dynamic model registry + measured auto-selection:
 curl -X POST http://localhost:3000/api/genesis/models -H "Content-Type: application/json" -d '{"action":"seed"}'

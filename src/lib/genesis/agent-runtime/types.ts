@@ -32,13 +32,15 @@ export interface LlmResult {
 /** Raw provider call result — token split so the router can estimate cost. */
 export interface RawLlmResult { text: string; promptTokens: number; completionTokens: number }
 
-export type LlmProvider = "anthropic" | "openrouter" | "zai" | "none";
+export type LlmProvider = "anthropic" | "openrouter" | "gemini" | "ollama" | "zai" | "none";
 
 /** Which single provider the legacy callLlm() uses (Anthropic-first). The multi-
  *  provider router (agent-runtime/router) considers all configured providers. */
 export function pickProvider(): LlmProvider {
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
   if (process.env.OPENROUTER_API_KEY) return "openrouter";
+  if (process.env.GEMINI_API_KEY) return "gemini";
+  if (process.env.OLLAMA_HOST) return "ollama";
   if (process.env.ZAI_API_KEY) return "zai";
   return "none";
 }
@@ -89,6 +91,47 @@ export async function callOpenRouter(opts: LlmOptions, timeoutMs: number): Promi
   return { text, promptTokens: data.usage?.prompt_tokens ?? 0, completionTokens: data.usage?.completion_tokens ?? 0 };
 }
 
+/** Google Gemini API (direct, generativelanguage.googleapis.com) — has a genuine
+ *  FREE tier (AI Studio key, no card). Model names are the direct-API ids
+ *  (e.g. "gemini-3.5-flash"), not OpenRouter slugs. */
+export async function callGemini(opts: LlmOptions, timeoutMs: number): Promise<RawLlmResult> {
+  const model = opts.model ?? process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${process.env.GEMINI_API_KEY!}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: opts.system }] },
+      contents: [{ role: "user", parts: [{ text: opts.user }] }],
+      generationConfig: { maxOutputTokens: opts.maxTokens ?? 1500, temperature: opts.temperature ?? 0.4 },
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) throw new Error(`GEMINI_HTTP_${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[]; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } };
+  const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
+  return { text, promptTokens: data.usageMetadata?.promptTokenCount ?? 0, completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0 };
+}
+
+/** Local Ollama (optional) — enabled by setting OLLAMA_HOST (e.g. http://127.0.0.1:11434).
+ *  Fully offline, $0. Model comes from the hop / OLLAMA_MODEL (default llama3.2). */
+export async function callOllama(opts: LlmOptions, timeoutMs: number): Promise<RawLlmResult> {
+  const host = (process.env.OLLAMA_HOST ?? "http://127.0.0.1:11434").replace(/\/$/, "");
+  const model = (opts.model ?? process.env.OLLAMA_MODEL ?? "llama3.2").replace(/^ollama:/, "");
+  const res = await fetch(`${host}/api/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model, stream: false,
+      messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.user }],
+      options: { num_predict: opts.maxTokens ?? 1500, temperature: opts.temperature ?? 0.4 },
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) throw new Error(`OLLAMA_HTTP_${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = await res.json() as { message?: { content?: string }; prompt_eval_count?: number; eval_count?: number };
+  return { text: data.message?.content ?? "", promptTokens: data.prompt_eval_count ?? 0, completionTokens: data.eval_count ?? 0 };
+}
+
 export async function callZai(opts: LlmOptions, timeoutMs: number): Promise<RawLlmResult> {
   const ZAI = await import("z-ai-web-dev-sdk").catch(() => null);
   if (!ZAI || !ZAI.default) throw new Error("SDK_UNAVAILABLE");
@@ -114,9 +157,13 @@ export async function callLlm(opts: LlmOptions): Promise<LlmResult> {
         const r = await callZai(opts, timeoutMs);
         if (r.text) return { ok: true, text: r.text, durationMs: Date.now() - start };
       } catch {}
-      return { ok: false, text: "", error: "NO_LLM_PROVIDER: set ANTHROPIC_API_KEY, OPENROUTER_API_KEY or ZAI_API_KEY", durationMs: Date.now() - start };
+      return { ok: false, text: "", error: "NO_LLM_PROVIDER: set ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, OLLAMA_HOST or ZAI_API_KEY", durationMs: Date.now() - start };
     }
-    const r = provider === "anthropic" ? await callAnthropic(opts, timeoutMs) : provider === "openrouter" ? await callOpenRouter(opts, timeoutMs) : await callZai(opts, timeoutMs);
+    const r = provider === "anthropic" ? await callAnthropic(opts, timeoutMs)
+      : provider === "openrouter" ? await callOpenRouter(opts, timeoutMs)
+      : provider === "gemini" ? await callGemini(opts, timeoutMs)
+      : provider === "ollama" ? await callOllama(opts, timeoutMs)
+      : await callZai(opts, timeoutMs);
     if (!r.text) return { ok: false, text: "", error: "EMPTY_RESPONSE", durationMs: Date.now() - start };
     const tokensUsed = r.promptTokens + r.completionTokens;
     return { ok: true, text: r.text, tokensUsed: tokensUsed || undefined, durationMs: Date.now() - start };

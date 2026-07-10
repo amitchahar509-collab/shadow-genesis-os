@@ -23,7 +23,7 @@
  */
 
 import { db } from "@/lib/db";
-import { callAnthropic, callOpenRouter, callZai, type LlmOptions, type LlmResult, type LlmProvider } from "../types";
+import { callAnthropic, callOpenRouter, callGemini, callOllama, callZai, type LlmOptions, type LlmResult, type LlmProvider } from "../types";
 import { rankModels, emergencyModel, recordModelOutcome, premiumMode, type Importance } from "../model-registry";
 
 export type Capability = "REASONING" | "CODING" | "LONG_CONTEXT" | "CHEAP" | "DEFAULT";
@@ -92,6 +92,8 @@ const MODEL_PRICES: Record<string, { in: number; out: number }> = {
   "deepseek/deepseek-v3.2": { in: 0.3, out: 1.2 },
 };
 export function estimateCost(model: string, promptTokens: number, completionTokens: number): number {
+  // $0 models estimate $0 — never invent a cost for free-tier / local brains.
+  if (model.endsWith(":free") || model.startsWith("ollama:") || model.startsWith("gemini-")) return 0;
   const p = MODEL_PRICES[model] ?? { in: 3, out: 12 };
   return Math.round(((promptTokens / 1e6) * p.in + (completionTokens / 1e6) * p.out) * 1e6) / 1e6;
 }
@@ -106,41 +108,57 @@ export function availableProviders(): Set<RoutableProvider> {
   const s = new Set<RoutableProvider>();
   if (process.env.ANTHROPIC_API_KEY) s.add("anthropic");
   if (process.env.OPENROUTER_API_KEY) s.add("openrouter");
+  if (process.env.GEMINI_API_KEY) s.add("gemini");
+  if (process.env.OLLAMA_HOST) s.add("ollama"); // optional local
   if (process.env.ZAI_API_KEY) s.add("zai");
   return s;
 }
 
-/** FREE_GENESIS_MODE static baseline — verified $0 slugs (registry-empty fallback). */
-const FREE_CHAINS: Record<Capability, Hop[]> = {
+/** Offline/free-mode provider precedence: Gemini free tier PRIMARY, OpenRouter
+ *  free FALLBACK, local Ollama last (optional). Premium mode has no forced order. */
+const FREE_PROVIDER_RANK: Record<string, number> = { gemini: 0, openrouter: 1, ollama: 2, anthropic: 3, zai: 4 };
+
+/** FREE_GENESIS_MODE static baseline — Gemini free tier primary, OpenRouter :free
+ *  fallback, local Ollama last (all verified/optional; registry-empty fallback). */
+const OLLAMA_HOP = (): Hop => ({ provider: "ollama", model: `ollama:${process.env.OLLAMA_MODEL ?? "llama3.2"}` });
+const FREE_CHAINS_BASE: Record<Capability, Hop[]> = {
   REASONING: [
+    { provider: "gemini", model: "gemini-3.5-flash" },
     { provider: "openrouter", model: "nousresearch/hermes-3-llama-3.1-405b:free" },
     { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
   ],
   CODING: [
+    { provider: "gemini", model: "gemini-3.5-flash" },
     { provider: "openrouter", model: "qwen/qwen3-coder:free" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
   ],
   LONG_CONTEXT: [
-    { provider: "openrouter", model: "qwen/qwen3-coder:free" }, // 1M ctx
+    { provider: "gemini", model: "gemini-3.5-flash" }, // 1M ctx, free tier
+    { provider: "openrouter", model: "qwen/qwen3-coder:free" },
     { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
   ],
   CHEAP: [
+    { provider: "gemini", model: "gemini-3.1-flash-lite" },
     { provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
   ],
   DEFAULT: [
+    { provider: "gemini", model: "gemini-3.5-flash" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
     { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
   ],
 };
+function freeChain(cap: Capability): Hop[] {
+  return [...FREE_CHAINS_BASE[cap], OLLAMA_HOP()]; // ollama optional tail (filtered out unless OLLAMA_HOST is set)
+}
 
 /** Static baseline chain (curated). Kept for tests/UI and as the registry-empty fallback.
  *  In FREE_GENESIS_MODE (PREMIUM_MODE unset) only $0 models are returned. */
 export function resolveChain(agent: string): Hop[] {
   const avail = availableProviders();
-  const table = premiumMode() ? CHAINS : FREE_CHAINS;
-  return table[capabilityFor(agent)].filter((h) => avail.has(h.provider));
+  const hops = premiumMode() ? CHAINS[capabilityFor(agent)] : freeChain(capabilityFor(agent));
+  return hops.filter((h) => avail.has(h.provider));
 }
 
 /** Registry-driven chain: measured ranking + importance shaping + emergency terminal hop. */
@@ -162,20 +180,30 @@ export async function resolveChainDynamic(agent: string, importance: Importance 
     const byId = new Map(rows.map((r) => [r.modelId, r]));
     for (const m of preferModels) { const r = byId.get(m); if (r) push(r.provider, r.modelId); }
   }
-  // 2. measured registry ranking
-  const ranked = await rankModels(capability, { limit: importance === "CRITICAL" ? 4 : 3, providers: avail as Set<string> }).catch(() => []);
-  for (const r of ranked) push(r.provider, r.modelId);
+  // 2. measured registry ranking — in free mode, apply the directive's provider
+  //    precedence (gemini free tier → openrouter free → local ollama), keeping
+  //    the measured score order WITHIN each provider.
+  const baseLimit = importance === "CRITICAL" ? 4 : 3;
+  const ranked = await rankModels(capability, { limit: premiumMode() ? baseLimit : baseLimit + 2, providers: avail as Set<string> }).catch(() => []);
+  const ordered = premiumMode() ? ranked : [...ranked].sort((a, b) => (FREE_PROVIDER_RANK[a.provider] ?? 9) - (FREE_PROVIDER_RANK[b.provider] ?? 9) || b.score - a.score);
+  for (const r of ordered) push(r.provider, r.modelId);
   // 3. static baseline if the registry gave us nothing
   if (hops.length === 0) return resolveChain(agent);
   // 4. emergency cheap terminal hop (Fallback 2.0 guarantee)
   const em = await emergencyModel(avail as Set<string>).catch(() => null);
   if (em) push(em.provider, em.modelId);
+  // 5. optional local Ollama — the guaranteed offline last resort in free mode
+  if (!premiumMode() && avail.has("ollama")) push("ollama", `ollama:${process.env.OLLAMA_MODEL ?? "llama3.2"}`);
   return hops;
 }
 
 type Invoke = (provider: RoutableProvider, opts: LlmOptions, timeoutMs: number) => Promise<{ text: string; promptTokens: number; completionTokens: number }>;
 const realInvoke: Invoke = (provider, opts, timeoutMs) =>
-  provider === "anthropic" ? callAnthropic(opts, timeoutMs) : provider === "openrouter" ? callOpenRouter(opts, timeoutMs) : callZai(opts, timeoutMs);
+  provider === "anthropic" ? callAnthropic(opts, timeoutMs)
+  : provider === "openrouter" ? callOpenRouter(opts, timeoutMs)
+  : provider === "gemini" ? callGemini(opts, timeoutMs)
+  : provider === "ollama" ? callOllama(opts, timeoutMs)
+  : callZai(opts, timeoutMs);
 
 const TRANSIENT = /(_429|_5\d\d|timeout|timed out|aborted|ECONN|fetch failed|overloaded)/i;
 
@@ -189,7 +217,7 @@ export function llmDisabled(): boolean {
 // model is verifiably $0 (":free" suffix, or registry-flagged free — cached 60s).
 let freeSetCache: { set: Set<string>; at: number } | null = null;
 async function isFreeModel(model: string): Promise<boolean> {
-  if (model.endsWith(":free")) return true;
+  if (model.endsWith(":free") || model.startsWith("ollama:") || model.startsWith("gemini-")) return true;
   if (!freeSetCache || Date.now() - freeSetCache.at > 60_000) {
     const rows = await db.modelRegistry.findMany({ where: { free: true }, select: { modelId: true } }).catch(() => [] as { modelId: string }[]);
     freeSetCache = { set: new Set(rows.map((r) => r.modelId)), at: Date.now() };
