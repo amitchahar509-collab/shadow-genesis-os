@@ -570,3 +570,25 @@ Note: the repo has no GitHub remote yet — the workflow activates on the first 
 Re-audit: every V8 gap + both force-multipliers + full auth rollout + CI are done. Remaining is operational only: set a valid ANTHROPIC_API_KEY (config, not code); add a GitHub remote to activate CI; the Windows-junction build cp is a local dev nuisance (CI/Linux deploy unaffected). No feature or security gaps remain.
 
 Commit: cycle 24 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 27
+Agent: Claude Code (Opus 4.8) — cycle 25: Multi-provider model router (OpenRouter + per-agent routing + fallback + cost)
+
+Task: Add OpenRouter support + a multi-provider model router. Do NOT replace the Anthropic adapter. Per-agent routing, fallback chain, cost/token tracking, dashboard, tests.
+
+Work Log:
+- Phase 0 audit: types.ts (callLlm Anthropic-first + private callAnthropic/callZai), base-agent ctx.llm seam, provider/ status module (cycle 21). tokensUsed already tracked on AgentExecution.
+- types.ts (additive, Anthropic adapter kept): added callOpenRouter (OpenAI-compatible, openrouter.ai); exported callAnthropic/callOpenRouter/callZai as raw callers returning {text, promptTokens, completionTokens}; extended LlmProvider union with "openrouter"; pickProvider now falls anthropic→openrouter→zai→none; callLlm unchanged behaviour (now supports openrouter as the single provider too).
+- router/ (new): capabilityFor(agent) map (CEO/BOARDROOM→REASONING, ENGINEERING/ARCHITECT/QUALITY/DEPLOYMENT→CODING, RESEARCH/INTERNET→LONG_CONTEXT, MEMORY/GROWTH/DESIGN→CHEAP, else DEFAULT); CHAINS per capability (each ends in a cheap fallback); MODEL_PRICES per-1M table; availableProviders() from env keys; resolveChain(agent) = chain filtered to configured providers; estimateCost(model, prompt, completion); callLlmRouted(opts, {agent, executionId, _invoke?}) walks the chain primary→next→cheap, records LlmUsage (real tokens + estimated cost + fallbackDepth), returns provider/model/costUsd; routingTable() + usageSummary() for the dashboard. Injectable _invoke seam for network-free tests.
+- LlmUsage model (agent, capability, provider, model, prompt/completion/total tokens, costUsd, ok, fallbackDepth, durationMs, error, executionId).
+- Wired: base-agent ctx.llm → callLlmRouted(agent=this.name) so every agent routes per capability; boardroom llmArgument → callLlmRouted(agent="BOARDROOM"). Removed now-unused callLlm import from boardroom.
+- provider/ status extended: providers[] (all configured), degraded only if none, routing table, getUsageSummary. API /api/genesis/provider: GET adds routing; ?usage=1 returns token/cost summary. Dashboard ProviderStatus panel: provider chips, expandable per-agent routing table, and router usage (calls/tokens/~cost est/fallbacks by provider).
+- Fixed existing provider.test (cycle 21) for the multi-provider world + the user's GENESIS_LLM_MODEL now in .env: robust save/clear/restore of all provider env keys; added an OpenRouter-sole-provider test.
+- Tests: router.test (10) — capability mapping; resolveChain provider-filtering + order (CEO primary opus); availableProviders; estimateCost = tokens×rates; NO_PROVIDER honest failure; primary-success records tokens+cost fallbackDepth 0; FALLBACK primary-fails→next-hop succeeds (depth 1); whole-chain-fail records failed row; routingTable availability flags; usageSummary aggregation. provider.test (6) updated.
+
+Verification: tsc 0 errors; eslint 0 errors; 173/173 tests (was 162); next build compiles. E2E (real HTTP, dummy keys): providers anthropic+openrouter, not degraded; per-agent primaries — CEO→claude-opus-4-8, ENGINEERING→claude-sonnet-5, RESEARCH→google/gemini-2.0-flash-001, MEMORY→openai/gpt-4o-mini, VENTURE→claude-sonnet-5 (matches directive). Real fallback walk for CEO tried all 3 hops across anthropic→openrouter (real 401s, 930ms), "all 3 providers failed", failed usage row recorded; OpenRouter adapter isolated call → real 401 from openrouter.ai (reaches the API). Anthropic adapter untouched. (bun run build standalone cp still fails on the junction — pre-existing.)
+
+Note: the user set GENESIS_LLM_MODEL=claude-opus-4-8 in .env but ANTHROPIC_API_KEY is still empty, so the stack remains in heuristic mode until a real key (Anthropic or OpenRouter) is added. Router activates the moment either key is set.
+
+Commit: cycle 25 committed on branch main.

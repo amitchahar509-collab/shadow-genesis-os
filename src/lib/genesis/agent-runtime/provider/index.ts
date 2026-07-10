@@ -16,6 +16,7 @@
  */
 
 import { pickProvider, callLlm, type LlmProvider } from "../types";
+import { availableProviders, routingTable, usageSummary } from "../router";
 
 const ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5";
 
@@ -40,30 +41,39 @@ const PROCEDURAL = [
 ];
 
 export interface ProviderStatus {
-  provider: LlmProvider;
+  provider: LlmProvider; // legacy: the single provider callLlm() would use (Anthropic-first)
+  providers: LlmProvider[]; // all configured providers the router can route to
   model: string | null;
   degraded: boolean;
   reasoningMode: "LLM" | "HEURISTIC";
   summary: string;
   llmGated: { gate: string; note: string; mode: "LLM" | "HEURISTIC" }[];
   procedural: { gate: string; note: string }[];
+  routing: ReturnType<typeof routingTable>;
   hint: string;
 }
 
 export function getProviderStatus(): ProviderStatus {
   const provider = pickProvider();
-  const degraded = provider === "none";
-  const model = provider === "anthropic" ? (process.env.GENESIS_LLM_MODEL ?? ANTHROPIC_DEFAULT_MODEL) : provider === "zai" ? "z-ai" : null;
+  const providers = [...availableProviders()] as LlmProvider[];
+  const degraded = providers.length === 0;
+  const model = provider === "anthropic" ? (process.env.GENESIS_LLM_MODEL ?? ANTHROPIC_DEFAULT_MODEL) : provider === "openrouter" ? "openrouter (routed per agent)" : provider === "zai" ? "z-ai" : null;
   const reasoningMode = degraded ? "HEURISTIC" : "LLM";
   return {
-    provider, model, degraded, reasoningMode,
+    provider, providers, model, degraded, reasoningMode,
     summary: degraded
       ? "DEGRADED — no LLM provider configured; every LLM-gated gate is running its rule-based heuristic fallback."
-      : `LLM ACTIVE — ${provider} (${model}); LLM-gated gates are running real reasoning.`,
+      : `LLM ACTIVE — ${providers.join(" + ")}; agents route per capability (reasoning/coding/long-context/cheap) with provider fallback.`,
     llmGated: LLM_GATED.map((g) => ({ ...g, mode: reasoningMode })),
     procedural: PROCEDURAL,
-    hint: degraded ? "Set ANTHROPIC_API_KEY (or ZAI_API_KEY) to activate real reasoning across all gates." : "Provider active. Unset the key to fall back to heuristics.",
+    routing: routingTable(),
+    hint: degraded ? "Set ANTHROPIC_API_KEY and/or OPENROUTER_API_KEY to activate real reasoning across all gates." : "Providers active. Add OPENROUTER_API_KEY for cross-provider fallback + more model choices.",
   };
+}
+
+/** Real token usage + estimated cost across the router. */
+export async function getUsageSummary(windowHours?: number) {
+  return usageSummary(windowHours);
 }
 
 export interface ProviderCheck {

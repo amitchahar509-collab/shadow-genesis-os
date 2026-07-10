@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProviderStatus, checkProvider } from "@/lib/genesis/agent-runtime/provider";
+import { getProviderStatus, checkProvider, getUsageSummary } from "@/lib/genesis/agent-runtime/provider";
 import { guard } from "@/lib/genesis/agent-runtime/auth";
 
-/** GET /api/genesis/provider — LLM provider status + capability matrix (open read for the dashboard badge). */
-export async function GET() {
+/** GET /api/genesis/provider — LLM provider status + routing table (open read for the dashboard badge).
+ *  ?usage=1  → real token usage + estimated cost summary  (?windowHours=…)
+ */
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  if (searchParams.has("usage")) {
+    return NextResponse.json({ usage: await getUsageSummary(Number(searchParams.get("windowHours")) || undefined) });
+  }
   return NextResponse.json({ status: getProviderStatus() });
 }
 

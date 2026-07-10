@@ -953,6 +953,29 @@ model ApiKey {
   @@index([hash])
 }
 
+// ============ MULTI-PROVIDER MODEL ROUTER: real token + estimated cost tracking ============
+model LlmUsage {
+  id               String   @id @default(cuid())
+  agent            String
+  capability       String   // REASONING | CODING | LONG_CONTEXT | CHEAP | DEFAULT
+  provider         String   // anthropic | openrouter | zai
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  costUsd          Float    @default(0) // ESTIMATE from the price table (real tokens × published rates)
+  ok               Boolean  @default(true)
+  fallbackDepth    Int      @default(0) // 0 = primary model succeeded; >0 = a fallback was used
+  durationMs       Int      @default(0)
+  error            String?
+  executionId      String?
+  createdAt        DateTime @default(now())
+
+  @@index([agent])
+  @@index([provider])
+  @@index([createdAt])
+}
+
 model UsageCounter {
   id        String   @id @default(cuid())
   orgId     String

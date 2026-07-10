@@ -18,7 +18,7 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { db } from "@/lib/db";
 import { emit, events } from "../event-bus";
-import { callLlm, parseJsonResponse } from "../types";
+import { parseJsonResponse } from "../types";
 
 export type Stance = "GO" | "NO_GO" | "ABSTAIN";
 export type Verdict = "GO" | "CONDITIONAL" | "NO_GO";
@@ -187,7 +187,9 @@ async function llmArgument(role: BoardRole, input: ConveneInput, timeoutMs: numb
     `Argue ONLY from your seat's incentives — do not try to be balanced, that is the board's job collectively. ` +
     `Respond ONLY with JSON: {"stance":"GO|NO_GO|ABSTAIN","argument":"2-4 sentences","concerns":["…"],"confidence":0-100}.`;
   const user = `Decision: ${input.question}\nTopic: ${input.topic}\n\nContext:\n${JSON.stringify(input.context ?? {}, null, 2)}`;
-  const r = await callLlm({ system, user, temperature: 0.6, maxTokens: 500, timeoutMs });
+  // Route through the multi-provider router — BOARDROOM → REASONING (strongest model).
+  const { callLlmRouted } = await import("../router");
+  const r = await callLlmRouted({ system, user, temperature: 0.6, maxTokens: 500, timeoutMs }, { agent: "BOARDROOM" });
   if (!r.ok) return null;
   const parsed = parseJsonResponse(r.text) as { stance?: string; argument?: string; concerns?: string[]; confidence?: number } | null;
   if (!parsed?.argument) return null;

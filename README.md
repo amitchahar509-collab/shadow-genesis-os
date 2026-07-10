@@ -17,8 +17,12 @@ bun x prisma db push
 
 # 3. (Optional) Set an LLM key for LLM-powered agents
 # Without one, agents use rule-based fallbacks (still functional, less creative)
-export ANTHROPIC_API_KEY=your-key-here   # preferred (Claude)
-# or: export ZAI_API_KEY=your-key-here   # fallback provider
+export ANTHROPIC_API_KEY=your-key-here     # Claude (direct adapter)
+export OPENROUTER_API_KEY=your-key-here    # OpenRouter (many models + cross-provider fallback)
+# or: export ZAI_API_KEY=your-key-here     # legacy fallback provider
+# Agents route per capability: CEO/Board→strongest reasoning, Engineering→best coding,
+# Research→long-context, Memory→cheap; a failed model falls through to the next provider.
+# GENESIS_LLM_MODEL only overrides the legacy callLlm() path; the router picks per agent.
 # Check which mode you're in (DEGRADED/heuristic vs real reasoning) + self-test the adapter:
 #   curl http://localhost:3000/api/genesis/provider            # status + capability matrix
 #   curl -X POST http://localhost:3000/api/genesis/provider    # real round-trip through the adapter

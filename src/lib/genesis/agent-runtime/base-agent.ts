@@ -73,8 +73,10 @@ export abstract class BaseAgent {
         throw lastErr;
       },
       llm: async (system: string, user: string, opts?: { temperature?: number; maxTokens?: number; timeoutMs?: number; }) => {
-        const { callLlm } = await import("./types");
-        const r = await callLlm({ system, user, temperature: opts?.temperature, maxTokens: opts?.maxTokens, timeoutMs: opts?.timeoutMs ?? 8_000 });
+        // Route through the multi-provider router — the agent's name selects the
+        // capability (reasoning/coding/long-context/cheap) + fallback chain.
+        const { callLlmRouted } = await import("./router");
+        const r = await callLlmRouted({ system, user, temperature: opts?.temperature, maxTokens: opts?.maxTokens, timeoutMs: opts?.timeoutMs ?? 8_000 }, { agent: this.name, executionId: this.executionId });
         if (r.tokensUsed) tokensUsed += r.tokensUsed;
         return r;
       },
