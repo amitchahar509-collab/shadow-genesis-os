@@ -8,10 +8,10 @@ import { runModelDuel, runModelBenchmark, STANDARD_DUELS } from "@/lib/genesis/a
 import { SEAT_MODELS, BOARD } from "@/lib/genesis/agent-runtime/boardroom";
 import type { LlmOptions } from "@/lib/genesis/agent-runtime/types";
 
-const KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "ZAI_API_KEY"] as const;
+const KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "ZAI_API_KEY", "PREMIUM_MODE"] as const;
 const saved: Record<string, string | undefined> = {};
 for (const k of KEYS) saved[k] = process.env[k];
-function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of on) process.env[k] = "sk-test"; }
+function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of on) process.env[k] = "sk-test"; process.env.PREMIUM_MODE = "true"; /* these suites assert PREMIUM ranking */ }
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
 beforeEach(async () => {
   await seedRegistry();
@@ -76,8 +76,11 @@ test("importance LOW routes a REASONING agent to cheap models (cost intelligence
   const low = await resolveChainDynamic("CEO", "LOW");
   expect(normal[0].model).toBe("anthropic/claude-opus-4.8"); // frontier for the critical path
   expect(low[0].model).not.toBe("anthropic/claude-opus-4.8"); // cheap task → cheap model
-  const cheapIds = ["openai/gpt-4o-mini", "google/gemini-3.1-flash-lite", "google/gemini-3.5-flash", "deepseek/deepseek-v3.2", "anthropic/claude-haiku-4.5", "z-ai/glm-4.7"];
-  expect(cheapIds).toContain(low[0].model);
+  // Property, not a fixed list: the LOW primary must be dramatically cheaper than
+  // the frontier primary (with FREE_SEED in the registry it's usually a $0 model).
+  const rows = await db.modelRegistry.findMany({ where: { modelId: { in: [normal[0].model, low[0].model] } } });
+  const price = (id: string) => { const r = rows.find((x) => x.modelId === id)!; return r.promptPrice + r.completionPrice; };
+  expect(price(low[0].model)).toBeLessThan(price(normal[0].model) / 5);
 });
 
 test("preferModels (per-seat brain) is tried first, then the chain", async () => {

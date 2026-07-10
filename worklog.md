@@ -628,3 +628,22 @@ Work Log:
 Verification: tsc 0 errors; eslint 0 errors; 184/184 tests (was 173); next build compiles /api/genesis/models. LIVE (real OpenRouter key): seed 14 + live catalog sync (12 active, 12 repriced with REAL prices); routing table matches the directive — WORLD_SCANNER→gemini-3.1-pro-preview, CEO→claude-opus-4.8→gpt-5.5, ENGINEERING→sonnet-5→opus→qwen3-coder, MEMORY/CUSTOMER→cheap. Real completions earlier this session across 5 distinct brains (opus-4.8 "Blue", gemini-3.5-flash "Earth", gpt-4o-mini "42", qwen-coder fallback, gemini-flash-lite fallback "Apple"). LIVE final test hit OpenRouter HTTP 402 (account has no purchased credits — free allowance exhausted): Fallback 2.0 walked the full chain, the mission never died (honest heuristic board, GO 67%), cost tracking recorded 13 calls/failures, and the registry LEARNED — failing models' reliability collapsed to 16-26 and deepseek was re-ranked out of the CHEAP primary seat (auto-selection from measured data, proven with real failures). Full 9-seat multi-model live debate awaits account credits — operational, not code.
 
 Commit: cycle 26 committed on branch main.
+
+---
+Task ID: 29
+Agent: Claude Code (Fable 5) — cycle 27: FREE_GENESIS_MODE
+
+Task: Free models first (qwen coder / reasoning / llama), premium (opus/gpt/gemini pro) only behind PREMIUM_MODE=true. Never burn credits accidentally. Audit → fix → test → commit.
+
+Work Log:
+- Audit: live catalog scan found 26 free models; 5 relevant VERIFIED $0 slugs (qwen3-coder:free 1M ctx, qwen3-next-80b:free, hermes-3-llama-405b:free, llama-3.3-70b:free, llama-3.2-3b:free). No deepseek/glm ":free" variants exist on the current catalog — solved with DYNAMIC DISCOVERY instead of guessing.
+- Registry: `free` column; FREE_SEED (5 verified profiles); seedRegistry seeds both lists; syncWithCatalog now (a) flags free from live pricing/":free" suffix, (b) auto-registers newly-appearing $0 models from qwen/deepseek/z-ai/meta-llama/nousresearch families (discovered count returned). premiumMode() = PREMIUM_MODE==="true"; rankModels/emergencyModel default to freeOnly=!premiumMode().
+- Router: FREE_CHAINS static baseline (verified slugs); resolveChain/resolveChainDynamic free-gated; preferModels resolve only free rows in free mode (a paid seat preference simply doesn't resolve); BELT-AND-BRACES hop guard — a non-$0 model is refused outright in free mode (SKIPPED_PAID_MODEL), so even injected paid hops can't burn credits. 429 retry now backs off (4s free / 2s premium + jitter) instead of instant-retrying.
+- Boardroom: SEAT_MODELS_FREE (multi-brain debate at $0: Founder/Investor/Risk→hermes-405b, CEO/CFO→qwen3-next, Engineer→qwen3-coder:free, others→llama) selected by mode; seats run SEQUENTIALLY with 1.5s stagger in free mode (9 parallel seats guaranteed free-tier 429s).
+- Test-env safety (bug found by the suite): with a real key in .env, agent tests started making REAL model calls (suite 70s→525s, 9 timeouts). Added llmDisabled() — under bun test, callLlmRouted refuses network unless a _invoke seam is injected or GENESIS_TEST_ALLOW_LLM=1; board stagger skipped in tests. Suite restored to 69s.
+- Provider status surfaces premiumMode + FREE_GENESIS_MODE in the summary. Existing premium-ranking suites opt into PREMIUM_MODE=true explicitly.
+- Tests: free-mode.test (8) — default OFF; verified $0 seeds; every capability chain free-only; rank/emergency exclude paid; PREMIUM_MODE restores opus; credit-burn guard (injected paid preference doesn't resolve + hop guard only ever sees :free); free board seats span ≥2 families; dynamic discovery auto-registers a new deepseek-r1:free. Updated: model-brain LOW-importance test to a price-ratio property (free models now legitimately win "cheap"); router no-provider test accepts the test-guard error.
+
+Verification: tsc 0; eslint 0; 192/192 tests (69s); next build compiles. LIVE: catalog scan verified the 5 free slugs; live debate attempted 3× — every free pool returned upstream HTTP 429 ("temporarily rate-limited upstream, retry shortly"): shared free capacity globally saturated at this hour (single serialized probes also 429). The mode itself is proven safe: 0 credits spent across all attempts (guard + free-only chains), failures recorded, board completed on honest heuristics every time. Unblocks: (1) retry off-peak — free pools fluctuate; (2) fix the credits/account mismatch (credits are on a different OpenRouter account/org than the key) — this both enables PREMIUM_MODE and raises the free-tier daily quota.
+
+Commit: cycle 27 committed on branch main.

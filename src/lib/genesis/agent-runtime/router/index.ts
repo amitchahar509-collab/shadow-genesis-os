@@ -24,7 +24,7 @@
 
 import { db } from "@/lib/db";
 import { callAnthropic, callOpenRouter, callZai, type LlmOptions, type LlmResult, type LlmProvider } from "../types";
-import { rankModels, emergencyModel, recordModelOutcome, type Importance } from "../model-registry";
+import { rankModels, emergencyModel, recordModelOutcome, premiumMode, type Importance } from "../model-registry";
 
 export type Capability = "REASONING" | "CODING" | "LONG_CONTEXT" | "CHEAP" | "DEFAULT";
 export type RoutableProvider = Exclude<LlmProvider, "none">;
@@ -110,10 +110,37 @@ export function availableProviders(): Set<RoutableProvider> {
   return s;
 }
 
-/** Static baseline chain (curated). Kept for tests/UI and as the registry-empty fallback. */
+/** FREE_GENESIS_MODE static baseline — verified $0 slugs (registry-empty fallback). */
+const FREE_CHAINS: Record<Capability, Hop[]> = {
+  REASONING: [
+    { provider: "openrouter", model: "nousresearch/hermes-3-llama-3.1-405b:free" },
+    { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
+    { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
+  ],
+  CODING: [
+    { provider: "openrouter", model: "qwen/qwen3-coder:free" },
+    { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
+  ],
+  LONG_CONTEXT: [
+    { provider: "openrouter", model: "qwen/qwen3-coder:free" }, // 1M ctx
+    { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
+  ],
+  CHEAP: [
+    { provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free" },
+    { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
+  ],
+  DEFAULT: [
+    { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
+    { provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free" },
+  ],
+};
+
+/** Static baseline chain (curated). Kept for tests/UI and as the registry-empty fallback.
+ *  In FREE_GENESIS_MODE (PREMIUM_MODE unset) only $0 models are returned. */
 export function resolveChain(agent: string): Hop[] {
   const avail = availableProviders();
-  return CHAINS[capabilityFor(agent)].filter((h) => avail.has(h.provider));
+  const table = premiumMode() ? CHAINS : FREE_CHAINS;
+  return table[capabilityFor(agent)].filter((h) => avail.has(h.provider));
 }
 
 /** Registry-driven chain: measured ranking + importance shaping + emergency terminal hop. */
@@ -128,9 +155,10 @@ export async function resolveChainDynamic(agent: string, importance: Importance 
   };
 
   // 1. explicit per-seat/per-call preferences, resolved via the registry
+  //    (in FREE_GENESIS_MODE a paid preference simply doesn't resolve — no credits burned)
   if (preferModels?.length) {
     type Reg = { modelId: string; provider: string };
-    const rows: Reg[] = await db.modelRegistry.findMany({ where: { modelId: { in: preferModels }, active: true }, select: { modelId: true, provider: true } }).catch(() => [] as Reg[]);
+    const rows: Reg[] = await db.modelRegistry.findMany({ where: { modelId: { in: preferModels }, active: true, ...(premiumMode() ? {} : { free: true }) }, select: { modelId: true, provider: true } }).catch(() => [] as Reg[]);
     const byId = new Map(rows.map((r) => [r.modelId, r]));
     for (const m of preferModels) { const r = byId.get(m); if (r) push(r.provider, r.modelId); }
   }
@@ -151,6 +179,24 @@ const realInvoke: Invoke = (provider, opts, timeoutMs) =>
 
 const TRANSIENT = /(_429|_5\d\d|timeout|timed out|aborted|ECONN|fetch failed|overloaded)/i;
 
+/** Tests must NEVER hit real model APIs unless a seam is injected (or explicitly
+ *  opted in via GENESIS_TEST_ALLOW_LLM=1) — keeps the suite fast, free and honest. */
+export function llmDisabled(): boolean {
+  return process.env.NODE_ENV === "test" && process.env.GENESIS_TEST_ALLOW_LLM !== "1";
+}
+
+// FREE_GENESIS_MODE belt-and-braces: a hop may only execute in free mode if the
+// model is verifiably $0 (":free" suffix, or registry-flagged free — cached 60s).
+let freeSetCache: { set: Set<string>; at: number } | null = null;
+async function isFreeModel(model: string): Promise<boolean> {
+  if (model.endsWith(":free")) return true;
+  if (!freeSetCache || Date.now() - freeSetCache.at > 60_000) {
+    const rows = await db.modelRegistry.findMany({ where: { free: true }, select: { modelId: true } }).catch(() => [] as { modelId: string }[]);
+    freeSetCache = { set: new Set(rows.map((r) => r.modelId)), at: Date.now() };
+  }
+  return freeSetCache.set.has(model);
+}
+
 export interface RoutedResult extends LlmResult { provider?: RoutableProvider; model?: string; capability: Capability; costUsd: number; expectedCostUsd?: number; fallbackDepth: number; retries?: number; importance?: Importance }
 
 /**
@@ -165,6 +211,9 @@ export async function callLlmRouted(
   const start = Date.now();
   const importance = ctx.importance ?? "NORMAL";
   const capability = importance === "LOW" ? "CHEAP" : capabilityFor(ctx.agent);
+  if (!ctx._invoke && llmDisabled()) {
+    return { ok: false, text: "", error: "LLM_DISABLED_IN_TESTS: inject _invoke or set GENESIS_TEST_ALLOW_LLM=1", durationMs: 0, capability, costUsd: 0, fallbackDepth: 0, importance };
+  }
   const chain = await resolveChainDynamic(ctx.agent, importance, ctx.preferModels);
   const invoke = ctx._invoke ?? realInvoke;
   const timeoutMs = opts.timeoutMs ?? 8_000;
@@ -177,6 +226,8 @@ export async function callLlmRouted(
   let totalRetries = 0;
   for (let depth = 0; depth < chain.length; depth++) {
     const hop = chain[depth];
+    // Never burn credits accidentally: in free mode, refuse any non-$0 hop outright.
+    if (!premiumMode() && !(await isFreeModel(hop.model))) { lastError = `SKIPPED_PAID_MODEL ${hop.model} (PREMIUM_MODE not enabled)`; continue; }
     const preEstimate = expectedCost(hop.model, opts);
     for (let attempt = 0; attempt < 2; attempt++) { // Fallback 2.0: retry the same model once on transient errors
       const t0 = Date.now();
@@ -192,7 +243,14 @@ export async function callLlmRouted(
       } catch (e) {
         lastError = e instanceof Error ? e.message : String(e);
         await recordModelOutcome(hop.model, false, Date.now() - t0).catch(() => {});
-        if (attempt === 0 && TRANSIENT.test(lastError)) { totalRetries++; continue; } // one retry, then next hop
+        if (attempt === 0 && TRANSIENT.test(lastError)) {
+          totalRetries++;
+          // Backoff before the retry — an immediate retry of a 429 just 429s again.
+          // Free-tier RPM limits need a longer breath.
+          const backoff = /_429/.test(lastError) ? (premiumMode() ? 2_000 : 4_000) : 750;
+          await new Promise((r) => setTimeout(r, backoff + Math.random() * 500));
+          continue;
+        }
         break;
       }
     }

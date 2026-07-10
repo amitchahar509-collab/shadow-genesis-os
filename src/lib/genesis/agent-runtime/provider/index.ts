@@ -17,6 +17,7 @@
 
 import { pickProvider, callLlm, type LlmProvider } from "../types";
 import { availableProviders, routingTable, usageSummary } from "../router";
+import { premiumMode } from "../model-registry";
 
 const ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5";
 
@@ -43,6 +44,7 @@ const PROCEDURAL = [
 export interface ProviderStatus {
   provider: LlmProvider; // legacy: the single provider callLlm() would use (Anthropic-first)
   providers: LlmProvider[]; // all configured providers the router can route to
+  premiumMode: boolean; // false = FREE_GENESIS_MODE ($0 models only; credits never burned)
   model: string | null;
   degraded: boolean;
   reasoningMode: "LLM" | "HEURISTIC";
@@ -60,10 +62,10 @@ export function getProviderStatus(): ProviderStatus {
   const model = provider === "anthropic" ? (process.env.GENESIS_LLM_MODEL ?? ANTHROPIC_DEFAULT_MODEL) : provider === "openrouter" ? "openrouter (routed per agent)" : provider === "zai" ? "z-ai" : null;
   const reasoningMode = degraded ? "HEURISTIC" : "LLM";
   return {
-    provider, providers, model, degraded, reasoningMode,
+    provider, providers, model, degraded, reasoningMode, premiumMode: premiumMode(),
     summary: degraded
       ? "DEGRADED — no LLM provider configured; every LLM-gated gate is running its rule-based heuristic fallback."
-      : `LLM ACTIVE — ${providers.join(" + ")}; agents route per capability (reasoning/coding/long-context/cheap) with provider fallback.`,
+      : `LLM ACTIVE — ${providers.join(" + ")} [${premiumMode() ? "PREMIUM" : "FREE_GENESIS_MODE ($0 models only)"}]; agents route per capability with provider fallback.`,
     llmGated: LLM_GATED.map((g) => ({ ...g, mode: reasoningMode })),
     procedural: PROCEDURAL,
     routing: routingTable(),

@@ -24,6 +24,12 @@ export OPENROUTER_API_KEY=your-key-here    # OpenRouter (many models + cross-pro
 # Research→long-context, Memory→cheap; a failed model falls through to the next provider.
 # GENESIS_LLM_MODEL only overrides the legacy callLlm() path; the router picks per agent.
 
+# FREE_GENESIS_MODE (default): only $0 ":free" models route — credits are NEVER
+# burned accidentally. Enable premium (Opus/GPT/Gemini Pro) explicitly:
+#   export PREMIUM_MODE=true
+# Free seats still debate multi-brain (Hermes-405B / Qwen3 / Llama). Note: free
+# pools are shared community capacity — expect intermittent 429s at peak.
+
 # V9 multi-brain layer — dynamic model registry + measured auto-selection:
 curl -X POST http://localhost:3000/api/genesis/models -H "Content-Type: application/json" -d '{"action":"seed"}'
 curl -X POST http://localhost:3000/api/genesis/models -H "Content-Type: application/json" -d '{"action":"sync"}'   # live catalog: availability + real prices

@@ -5,10 +5,10 @@ import { db } from "@/lib/db";
 import { capabilityFor, resolveChain, estimateCost, availableProviders, callLlmRouted, routingTable, usageSummary } from "@/lib/genesis/agent-runtime/router";
 import type { LlmOptions } from "@/lib/genesis/agent-runtime/types";
 
-const KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "ZAI_API_KEY"] as const;
+const KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "ZAI_API_KEY", "PREMIUM_MODE"] as const;
 const saved: Record<string, string | undefined> = {};
 for (const k of KEYS) saved[k] = process.env[k];
-function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of on) process.env[k] = "sk-test"; }
+function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of on) process.env[k] = "sk-test"; process.env.PREMIUM_MODE = "true"; /* these suites assert PREMIUM ranking */ }
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
 beforeEach(async () => {
   await db.llmUsage.deleteMany({ where: { agent: { startsWith: "ROUTERTEST" } } });
@@ -64,11 +64,13 @@ test("estimateCost = real tokens × published per-1M rates", () => {
   expect(estimateCost("openai/gpt-4o-mini", 1000, 1000)).toBeLessThan(estimateCost("claude-opus-4-8", 1000, 1000));
 });
 
-test("no providers → honest NO_PROVIDER failure (agents fall back to heuristic)", async () => {
+test("no providers → honest failure, no call made (agents fall back to heuristic)", async () => {
   setKeys();
   const r = await callLlmRouted({ system: "s", user: "u" }, { agent: "ROUTERTEST_none" });
   expect(r.ok).toBe(false);
-  expect(r.error).toContain("NO_PROVIDER");
+  // without an injected seam the test-env guard fires first; with keys absent the
+  // router would report NO_PROVIDER — either way: no call, no cost, honest error.
+  expect(r.error).toMatch(/NO_PROVIDER|LLM_DISABLED_IN_TESTS/);
   expect(r.costUsd).toBe(0);
 });
 

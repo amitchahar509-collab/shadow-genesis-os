@@ -86,6 +86,19 @@ export const SEAT_MODELS: Record<string, string[]> = {
   RISK: ["anthropic/claude-opus-4.8", "openai/gpt-5.5"],         // Claude / GPT
 };
 
+/** FREE_GENESIS_MODE seats — the debate stays multi-brain at $0 (verified :free models). */
+export const SEAT_MODELS_FREE: Record<string, string[]> = {
+  FOUNDER: ["nousresearch/hermes-3-llama-3.1-405b:free"],        // big free reasoner
+  CEO: ["qwen/qwen3-next-80b-a3b-instruct:free"],
+  INVESTOR: ["nousresearch/hermes-3-llama-3.1-405b:free"],
+  CUSTOMER: ["meta-llama/llama-3.2-3b-instruct:free"],           // cheap+fast persona voice
+  COMPETITOR: ["meta-llama/llama-3.3-70b-instruct:free"],
+  CFO: ["qwen/qwen3-next-80b-a3b-instruct:free"],
+  GROWTH: ["meta-llama/llama-3.3-70b-instruct:free"],
+  ENGINEER: ["qwen/qwen3-coder:free"],
+  RISK: ["nousresearch/hermes-3-llama-3.1-405b:free", "qwen/qwen3-next-80b-a3b-instruct:free"],
+};
+
 export interface BoardDecisionResult {
   decisionId: string;
   topic: string;
@@ -203,10 +216,13 @@ async function llmArgument(role: BoardRole, input: ConveneInput, timeoutMs: numb
     `Argue ONLY from your seat's incentives — do not try to be balanced, that is the board's job collectively. ` +
     `Respond ONLY with JSON: {"stance":"GO|NO_GO|ABSTAIN","argument":"2-4 sentences","concerns":["…"],"confidence":0-100}.`;
   const user = `Decision: ${input.question}\nTopic: ${input.topic}\n\nContext:\n${JSON.stringify(input.context ?? {}, null, 2)}`;
-  // V9 multi-brain debate: each seat prefers its own brain (SEAT_MODELS); the
-  // router resolves via the registry and falls back to the REASONING chain.
+  // V9 multi-brain debate: each seat prefers its own brain — premium seats when
+  // PREMIUM_MODE=true, otherwise the $0 FREE_GENESIS_MODE seats. The router
+  // resolves via the registry and falls back to the REASONING chain.
   const { callLlmRouted } = await import("../router");
-  const r = await callLlmRouted({ system, user, temperature: 0.6, maxTokens: 500, timeoutMs }, { agent: "BOARDROOM", importance: "CRITICAL", preferModels: SEAT_MODELS[role.role] });
+  const { premiumMode } = await import("../model-registry");
+  const seats = premiumMode() ? SEAT_MODELS : SEAT_MODELS_FREE;
+  const r = await callLlmRouted({ system, user, temperature: 0.6, maxTokens: 500, timeoutMs }, { agent: "BOARDROOM", importance: "CRITICAL", preferModels: seats[role.role] });
   if (!r.ok) return null;
   const parsed = parseJsonResponse(r.text) as { stance?: string; argument?: string; concerns?: string[]; confidence?: number } | null;
   if (!parsed?.argument) return null;
@@ -321,16 +337,29 @@ export async function conveneBoard(input: ConveneInput): Promise<BoardDecisionRe
   const signals = readSignals(input.context);
   await emit(events.decision("BOARDROOM", `convening on: ${input.question.slice(0, 120)}`));
 
-  // Every seat argues in parallel; each independently falls back to a heuristic.
-  const args = await Promise.all(
-    BOARD.map(async (role) => {
-      try {
-        const viaLlm = await llmArgument(role, input, timeoutMs);
-        if (viaLlm) return viaLlm;
-      } catch { /* fall through to heuristic */ }
-      return heuristicArgument(role, signals);
-    }),
-  );
+  // Seat scheduling: parallel in premium; SEQUENTIAL with a small stagger in
+  // FREE_GENESIS_MODE — free-tier models have strict per-minute rate limits and
+  // nine concurrent seats guarantee 429s. Each seat still independently falls
+  // back to its heuristic if its brains are exhausted.
+  const { premiumMode } = await import("../model-registry");
+  const argueSeat = async (role: BoardRole) => {
+    try {
+      const viaLlm = await llmArgument(role, input, timeoutMs);
+      if (viaLlm) return viaLlm;
+    } catch { /* fall through to heuristic */ }
+    return heuristicArgument(role, signals);
+  };
+  let args: BoardArgumentResult[];
+  if (premiumMode()) {
+    args = await Promise.all(BOARD.map(argueSeat));
+  } else {
+    const { llmDisabled } = await import("../router");
+    args = [];
+    for (const role of BOARD) {
+      args.push(await argueSeat(role));
+      if (!llmDisabled()) await new Promise((r) => setTimeout(r, 1_500)); // breathe between free-tier calls
+    }
+  }
 
   const anyLlm = args.some((a) => a.mode === "LLM");
   const allLlm = args.every((a) => a.mode === "LLM");

@@ -45,13 +45,31 @@ export const CURATED_SEED: SeedProfile[] = [
   { modelId: "claude-sonnet-5", family: "CLAUDE", provider: "anthropic", name: "Claude Sonnet 5 (direct)", contextLength: 200_000, promptPrice: 3, completionPrice: 15, reasoningTier: 90, codingTier: 93, researchTier: 85, strengths: ["coding"], weaknesses: [], tags: ["coding"] },
 ];
 
+/** FREE_GENESIS_MODE brains — verified live on the OpenRouter catalog, cost $0.
+ *  (No deepseek/glm ":free" variants exist on the current catalog; the sync's
+ *  dynamic discovery auto-registers them if they appear.) */
+export const FREE_SEED: (SeedProfile & { free: true })[] = [
+  { modelId: "qwen/qwen3-coder:free", family: "QWEN", provider: "openrouter", name: "Qwen3 Coder (free)", contextLength: 1_048_576, promptPrice: 0, completionPrice: 0, reasoningTier: 68, codingTier: 86, researchTier: 60, strengths: ["coding", "$0"], weaknesses: ["rate limits"], tags: ["free", "coding"], free: true },
+  { modelId: "qwen/qwen3-next-80b-a3b-instruct:free", family: "QWEN", provider: "openrouter", name: "Qwen3 Next 80B (free)", contextLength: 262_144, promptPrice: 0, completionPrice: 0, reasoningTier: 78, codingTier: 72, researchTier: 72, strengths: ["reasoning", "$0"], weaknesses: ["rate limits"], tags: ["free", "reasoning"], free: true },
+  { modelId: "nousresearch/hermes-3-llama-3.1-405b:free", family: "LLAMA", provider: "openrouter", name: "Hermes 3 405B (free)", contextLength: 131_072, promptPrice: 0, completionPrice: 0, reasoningTier: 80, codingTier: 70, researchTier: 74, strengths: ["deep reasoning", "$0"], weaknesses: ["latency", "rate limits"], tags: ["free", "reasoning"], free: true },
+  { modelId: "meta-llama/llama-3.3-70b-instruct:free", family: "LLAMA", provider: "openrouter", name: "Llama 3.3 70B (free)", contextLength: 131_072, promptPrice: 0, completionPrice: 0, reasoningTier: 74, codingTier: 66, researchTier: 68, strengths: ["general", "$0"], weaknesses: ["rate limits"], tags: ["free"], free: true },
+  { modelId: "meta-llama/llama-3.2-3b-instruct:free", family: "LLAMA", provider: "openrouter", name: "Llama 3.2 3B (free)", contextLength: 131_072, promptPrice: 0, completionPrice: 0, reasoningTier: 45, codingTier: 40, researchTier: 42, strengths: ["speed", "$0"], weaknesses: ["depth"], tags: ["free", "mini"], free: true },
+];
+
+/** FREE_GENESIS_MODE is the DEFAULT: premium (credit-burning) models route only
+ *  when PREMIUM_MODE=true. Never burn credits accidentally. */
+export function premiumMode(): boolean {
+  return process.env.PREMIUM_MODE === "true";
+}
+
 export async function seedRegistry(): Promise<number> {
   let n = 0;
-  for (const p of CURATED_SEED) {
+  for (const p of [...CURATED_SEED, ...FREE_SEED]) {
+    const free = "free" in p ? true : false;
     await db.modelRegistry.upsert({
       where: { modelId: p.modelId },
-      create: { modelId: p.modelId, family: p.family, provider: p.provider, name: p.name, contextLength: p.contextLength, promptPrice: p.promptPrice, completionPrice: p.completionPrice, reasoningTier: p.reasoningTier, codingTier: p.codingTier, researchTier: p.researchTier, strengths: JSON.stringify(p.strengths), weaknesses: JSON.stringify(p.weaknesses), tags: JSON.stringify(p.tags), source: "seed" },
-      update: {}, // never clobber measured/synced state on reseed
+      create: { modelId: p.modelId, family: p.family, provider: p.provider, name: p.name, contextLength: p.contextLength, promptPrice: p.promptPrice, completionPrice: p.completionPrice, reasoningTier: p.reasoningTier, codingTier: p.codingTier, researchTier: p.researchTier, strengths: JSON.stringify(p.strengths), weaknesses: JSON.stringify(p.weaknesses), tags: JSON.stringify(p.tags), source: "seed", free },
+      update: { free }, // keep the free flag correct; never clobber measured/synced state
     });
     n++;
   }
@@ -59,7 +77,7 @@ export async function seedRegistry(): Promise<number> {
 }
 
 /** Sync availability + real prices from OpenRouter's live catalog. Injectable fetch for tests. */
-export async function syncWithCatalog(fetchCatalog?: () => Promise<{ id: string; context_length?: number; pricing?: { prompt?: string; completion?: string } }[]>): Promise<{ activated: number; deactivated: number; priced: number }> {
+export async function syncWithCatalog(fetchCatalog?: () => Promise<{ id: string; context_length?: number; pricing?: { prompt?: string; completion?: string } }[]>): Promise<{ activated: number; deactivated: number; priced: number; discovered: number }> {
   const load = fetchCatalog ?? (async () => {
     const res = await fetch("https://openrouter.ai/api/v1/models", { headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY ?? ""}` } });
     if (!res.ok) throw new Error(`OPENROUTER_HTTP_${res.status}`);
@@ -69,6 +87,8 @@ export async function syncWithCatalog(fetchCatalog?: () => Promise<{ id: string;
   const byId = new Map(catalog.map((m) => [m.id, m]));
   const rows = await db.modelRegistry.findMany({ where: { provider: "openrouter" } });
   let activated = 0, deactivated = 0, priced = 0;
+  const isFree = (m: { id: string; pricing?: { prompt?: string; completion?: string } }) =>
+    m.id.endsWith(":free") || (parseFloat(m.pricing?.prompt ?? "1") === 0 && parseFloat(m.pricing?.completion ?? "1") === 0);
   for (const row of rows) {
     const live = byId.get(row.modelId);
     if (!live) {
@@ -77,11 +97,22 @@ export async function syncWithCatalog(fetchCatalog?: () => Promise<{ id: string;
     }
     const promptPrice = live.pricing?.prompt ? parseFloat(live.pricing.prompt) * 1e6 : row.promptPrice;
     const completionPrice = live.pricing?.completion ? parseFloat(live.pricing.completion) * 1e6 : row.completionPrice;
-    await db.modelRegistry.update({ where: { id: row.id }, data: { active: true, source: "openrouter", contextLength: live.context_length ?? row.contextLength, promptPrice, completionPrice } });
+    await db.modelRegistry.update({ where: { id: row.id }, data: { active: true, source: "openrouter", contextLength: live.context_length ?? row.contextLength, promptPrice, completionPrice, free: isFree(live) } });
     activated++; if (live.pricing?.prompt) priced++;
   }
-  await emit({ agent: "MODEL_REGISTRY", action: "SYNC", detail: `catalog sync: ${activated} active, ${deactivated} deactivated, ${priced} repriced`, level: "INFO", category: "SYSTEM" });
-  return { activated, deactivated, priced };
+  // Dynamic FREE discovery: auto-register new $0 models from families of interest
+  // (so free deepseek/glm variants join the registry the moment they appear).
+  let discovered = 0;
+  const known = new Set(rows.map((r) => r.modelId));
+  for (const m of catalog) {
+    if (known.has(m.id) || !isFree(m)) continue;
+    if (!/^(qwen|deepseek|z-ai|meta-llama|nousresearch)\//.test(m.id)) continue;
+    const family = m.id.startsWith("qwen/") ? "QWEN" : m.id.startsWith("deepseek/") ? "DEEPSEEK" : m.id.startsWith("z-ai/") ? "GLM" : "LLAMA";
+    await db.modelRegistry.create({ data: { modelId: m.id, family, provider: "openrouter", name: `${m.id} (free, discovered)`, contextLength: m.context_length ?? 0, promptPrice: 0, completionPrice: 0, reasoningTier: 60, codingTier: 60, researchTier: 60, free: true, active: true, source: "openrouter", tags: JSON.stringify(["free", "discovered"]) } }).catch(() => {});
+    discovered++;
+  }
+  await emit({ agent: "MODEL_REGISTRY", action: "SYNC", detail: `catalog sync: ${activated} active, ${deactivated} deactivated, ${priced} repriced, ${discovered} free discovered`, level: "INFO", category: "SYSTEM" });
+  return { activated, deactivated, priced, discovered };
 }
 
 type Row = NonNullable<Awaited<ReturnType<typeof db.modelRegistry.findFirst>>>;
@@ -110,8 +141,10 @@ export function effectiveScore(row: Row, cap: ModelCapability): number {
 
 export interface RankedModel { modelId: string; provider: string; score: number; promptPrice: number; completionPrice: number; reliability: number; avgLatencyMs: number }
 
-export async function rankModels(cap: ModelCapability, opts?: { limit?: number; providers?: Set<string> }): Promise<RankedModel[]> {
-  const rows = await db.modelRegistry.findMany({ where: { active: true } });
+export async function rankModels(cap: ModelCapability, opts?: { limit?: number; providers?: Set<string>; freeOnly?: boolean }): Promise<RankedModel[]> {
+  // FREE_GENESIS_MODE: unless premium is explicitly enabled, only $0 models rank.
+  const freeOnly = opts?.freeOnly ?? !premiumMode();
+  const rows = await db.modelRegistry.findMany({ where: { active: true, ...(freeOnly ? { free: true } : {}) } });
   const usable = rows.filter((r) => !opts?.providers || opts.providers.has(r.provider));
   return usable
     .map((r) => ({ modelId: r.modelId, provider: r.provider, score: effectiveScore(r, cap), promptPrice: r.promptPrice, completionPrice: r.completionPrice, reliability: r.reliability, avgLatencyMs: r.avgLatencyMs }))
@@ -134,9 +167,10 @@ export async function recordDuelResult(winnerId: string | null, loserIds: string
   for (const l of loserIds) await db.modelRegistry.update({ where: { modelId: l }, data: { measuredLosses: { increment: 1 } } }).catch(() => {});
 }
 
-/** Cheapest active model — the emergency terminal hop (Fallback 2.0). */
-export async function emergencyModel(providers: Set<string>): Promise<RankedModel | null> {
-  const rows = await db.modelRegistry.findMany({ where: { active: true } });
+/** Cheapest active model — the emergency terminal hop (Fallback 2.0). Free-only unless premium. */
+export async function emergencyModel(providers: Set<string>, opts?: { freeOnly?: boolean }): Promise<RankedModel | null> {
+  const freeOnly = opts?.freeOnly ?? !premiumMode();
+  const rows = await db.modelRegistry.findMany({ where: { active: true, ...(freeOnly ? { free: true } : {}) } });
   const usable = rows.filter((r) => providers.has(r.provider) && r.reliability >= 30);
   if (!usable.length) return null;
   usable.sort((a, b) => (a.promptPrice + a.completionPrice) - (b.promptPrice + b.completionPrice));

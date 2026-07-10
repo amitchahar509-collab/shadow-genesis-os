@@ -975,6 +975,7 @@ model ModelRegistry {
   weaknesses      String   @default("[]")
   tags            String   @default("[]")
   active          Boolean  @default(true) // false = not available on the live catalog / retired
+  free            Boolean  @default(false) // FREE_GENESIS_MODE: costs no credits (":free" variant / zero-priced)
   source          String   @default("seed") // seed | openrouter
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
