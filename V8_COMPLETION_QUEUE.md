@@ -26,6 +26,12 @@
 - **Bug found & fixed by this cycle's tests**: `count()+1` id allocation in VENTURE (`VC-`), CUSTOMER (`SIM-`), OPPORTUNITY (`OPP-`) collided after any row deletion (P2002). Replaced with numeric max-scan (same fix as EX-/CLM- ids). Full suite now stable across repeated runs.
 - Verified: tsc ✓, eslint ✓, **70/70 tests ×3 runs** (5 new), build compiles `/api/genesis/company`.
 
+## Re-audit after cycle 24 — CI pipeline
+
+`.github/workflows/ci.yml` runs the full gate on every push + PR: Bun on Ubuntu → install (cached) → prisma generate + push to a FRESH SQLite (independent of the committed `db/custom.db`) → `tsc --noEmit` → lint → `bun test tests/` → `bun run build`. Ubuntu sidesteps the Windows-junction `cp` failure entirely. Verified locally by running the exact CI steps against a fresh empty DB: prisma push clean, tsc 0, lint 0, **162/162 tests** — proving the suite is self-contained (no dependency on the committed runtime rows), so the CI test job will be green. Activates as soon as a GitHub remote is added and the branch is pushed (the repo has no remote yet).
+
+Every V8 gap, both force-multipliers, the full auth rollout, AND CI are now done. The only remaining items are operational: **set a valid `ANTHROPIC_API_KEY`** (real reasoning + web scanning — the single highest-value action, and it's a config value not code); add a **GitHub remote** to activate CI; and the standalone-build/junction is a Windows-local dev nuisance only (CI + Linux deploy are unaffected). There are no open feature gaps, no security gaps, and no un-gated regressions once CI is live.
+
 ## Re-audit after cycle 23 — Guard rollout complete + per-org usage limits
 
 The auth surface is now complete: **every mutation route (50/50) is guarded** — the 38 previously-open POST/PATCH/DELETE handlers now go through a shared `guardWrite(req, role)` helper (auth + per-org usage limit + audit), with ADMIN on destructive/infra/spend routes (dispatch, seed, sandboxes, prompts, tools, agent-templates, boardroom, benchmark, metrics, …) and MEMBER on data-create/analysis routes. Added `UsageCounter` + `checkAndRecordUsage`: real org keys are metered against a daily cap (`GENESIS_ORG_DAILY_LIMIT`, default 2000 → 429 when exceeded); the local single-operator principal is unmetered so the dashboard is unaffected. Reads stay open. Verified live under enforcement: 7 sampled rolled-out routes (seed, orchestrator/dispatch, venture, tasks, v4/dispatch, loops, memory) all 401 without a key; reads 200; OWNER key admits.

@@ -551,3 +551,22 @@ Verification: tsc 0 errors; eslint 0 errors; 162/162 tests (was 158); next build
 Re-audit: auth surface COMPLETE (0 open mutation routes) + per-org usage limits. The "No auth" HIGH production blocker is resolved. System is feature-complete AND production-hardened on auth. Remaining is operational/optional: set a valid ANTHROPIC_API_KEY (real reasoning — operational); a CI workflow (nothing runs on commit today); the standalone-build/junction env debt.
 
 Commit: cycle 23 committed on branch v6-intelligence-layers.
+
+---
+Task ID: 27
+Agent: Claude Code (Opus 4.8) — cycle 24: CI pipeline (GitHub Actions)
+
+Task: Add CI so typecheck/lint/test/build run on every push — nothing ran on commit before.
+
+Work Log:
+- Phase 0: project uses Bun + Prisma/SQLite; .env + bun.lock + db/custom.db are tracked. The `bun run build` cp-standalone step only fails on the Windows Downloads junction — Linux CI avoids it entirely.
+- .github/workflows/ci.yml (ubuntu-latest, 20-min timeout): actions/checkout → oven-sh/setup-bun@v2 (pinned 1.3.14) → actions/cache for ~/.bun/install/cache → bun install --frozen-lockfile → prisma generate + db push to a FRESH ci.db (job-level DATABASE_URL=file:../db/ci.db wins over the tracked .env since dotenv never overrides existing env) → bun x tsc --noEmit → bun run lint → bun test tests/ → bun run build. Triggers on push + pull_request (all branches).
+- .gitignore: added db/ci*.db so the CI-created SQLite is never committed.
+
+Verification (can't run GitHub Actions here, so simulated the exact CI steps locally against a FRESH empty db): exported DATABASE_URL=file:../db/ci-verify.db → confirmed the override is honored (not the committed custom.db) → prisma generate + db push clean → tsc 0 errors → lint 0 → bun test tests/ 162/162 PASS in 67s. This proves the suite is fully SELF-CONTAINED (no reliance on the committed runtime/seed rows), so the CI test job will be green. next build compiles (verified repeatedly); the cp -r standalone step is Linux-standard (only the Windows junction breaks it).
+
+Note: the repo has no GitHub remote yet — the workflow activates on the first push to GitHub. EVOLUTION_BACKLOG #8 (CI, "needs a remote first") is now delivered pending that remote.
+
+Re-audit: every V8 gap + both force-multipliers + full auth rollout + CI are done. Remaining is operational only: set a valid ANTHROPIC_API_KEY (config, not code); add a GitHub remote to activate CI; the Windows-junction build cp is a local dev nuisance (CI/Linux deploy unaffected). No feature or security gaps remain.
+
+Commit: cycle 24 committed on branch v6-intelligence-layers.

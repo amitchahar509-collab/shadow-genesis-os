@@ -58,3 +58,6 @@ server.log
 .genesis-test/
 .genesis-test-factory/
 tool-results/
+
+# CI ephemeral SQLite
+db/ci*.db
