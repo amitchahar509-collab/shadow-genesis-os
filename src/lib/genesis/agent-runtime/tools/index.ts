@@ -128,6 +128,10 @@ export const terminalTool: Tool = {
       if (op === "exec") {
         const cmd = String(input.command ?? "");
         if (!cmd) return { ok: false, summary: "exec: missing command", error: "BAD_INPUT" };
+        // V10 Module 6 — sandbox hardening: block destructive/abusive commands before they run.
+        const { guardCommand } = await import("../security-engine");
+        const g = await guardCommand(cmd, `terminal:${ctx.agent}`);
+        if (!g.allowed) return { ok: false, summary: `exec BLOCKED by security engine (${g.assessment.category})`, error: "SECURITY_BLOCKED", result: { category: g.assessment.category, severity: g.assessment.severity } };
         const r = await sh(ctx.sandboxRoot, cmd, Math.min(Number(input.timeoutMs ?? DEFAULT_TIMEOUT), 300_000));
         const ok = r.exitCode === 0;
         return { ok, summary: `exec → exit ${r.exitCode} [${r.durationMs}ms]`, result: { exitCode: r.exitCode, durationMs: r.durationMs }, raw: r.stdout + (r.stderr ? `\n[stderr]\n${r.stderr}` : ""), error: ok ? undefined : `EXIT_${r.exitCode}` };

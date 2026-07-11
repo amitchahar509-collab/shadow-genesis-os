@@ -907,3 +907,23 @@ Work Log:
 Verification: tsc 0; eslint 0; 280/280 (was 270) on committed AND fresh CI-style db. LIVE on the real db (read-only, nothing to purge): backends prometheus/grafana on, otel/sentry off (honest); real Prometheus exposition (25 SUCCESS execs, 8 ERROR/5 SUCCESS tool calls, 50 llm calls - valid format); real latency (exec p95 698ms, llm p95 1834ms over 1629 real calls); real cost $0.481215 from the LlmUsage ledger (openrouter, gemini $0). All figures trace to real rows - zeros/values are honest, never fabricated.
 
 Commit: cycle 42 committed on branch main.
+
+---
+Task ID: 45
+Agent: Claude Code (Fable 5) - cycle 43: V10 Module 6 - Enterprise Security Engine (real detection, always redacted, never fabricated)
+
+Task: V10 Module 6 - secret detection, prompt-injection firewall, dependency/SBOM, API + sandbox + file security, security events/dashboard, self-healing. Never fabricate a vulnerability; every finding needs evidence + severity + confidence + fix + label.
+
+Phase 0 (SECURITY_AUDIT.md, real evidence per finding): no CRITICAL. Real gaps found - SEC-1 terminal.exec ran any command unfiltered (HIGH), SEC-2 no secret redaction on the log/event path (MEDIUM), SEC-3 no injection screen on web content fed to LLMs (MEDIUM), SEC-4 no SBOM (MEDIUM), SEC-6 no security headers (LOW), SEC-7 no file screening (LOW). Verified-safe: no eval of user input, no committed secrets, all mutations guardWrite'd, Prisma parameterized (only static $queryRaw), connectors never log keys.
+
+Work Log (all additive, no rebuild):
+- security-engine/secrets.ts: 12 real credential patterns. scanForSecrets returns REDACTED fingerprints only; the raw secret is NEVER returned or stored.
+- security-engine/injection.ts: 9-rule prompt-injection firewall -> SAFE/WARNING/BLOCKED with matched evidence, HEURISTIC-labeled.
+- security-engine/sbom.ts: real CycloneDX 1.5 + SPDX 2.3 from package.json; auditDependencies vs an offline advisory list (REAL hits only) with cveFeed honestly UNKNOWN; writeSBOM artifacts.
+- security-engine/index.ts: assessCommand/guardCommand (9 dangerous patterns incl. recursive-root-delete, fork-bomb, pipe-to-shell, disk-overwrite, reverse-shell, credential-read); assessFile (exec magic bytes, extension spoofing, oversized, dangerous MIME); securityHeaders(); logSecurityEvent (redacts as final net); firewallPrompt/scanAndLogSecrets; securityOverview (threat score + redacted timeline); selfHeal (suggestions only, never deletes).
+- LIVE WIRING: guardCommand into terminal.exec (SEC-1 fixed - destructive commands BLOCKED before running); redactSecrets into event-bus emit() (SEC-2 fixed). SecurityEvent model + /api/genesis/security/engine + dashboard panel.
+- Tests (security-engine.test.ts, 14): key detection+never-exposed; redaction; event-bus live redaction; firewall verdicts+evidence+logging; SBOM both formats; real lodash advisory + UNKNOWN feed; command block/allow+logging; file screening; headers; threat score+redacted timeline; self-heal suggests-only; per-kind redacted secret logging. Fixed during dev: data-exfil regex [^.] couldn't cross the period in dotenv filenames -> broadened.
+
+Verification: tsc 0; eslint 0; 294/294 (was 280) on committed AND fresh CI-style db. LIVE end-to-end demo (then purged): secret detection (real anthropic+github keys redacted), injection (SAFE/BLOCKED), dependency audit of THIS repo (77 real components, 0 advisory hits - honest, cveFeed UNKNOWN), CycloneDX 1.5 SBOM (77 components), sandbox (destructive commands + pipe-to-shell BLOCKED, build SAFE), dashboard (threatScore 87 HIGH from real events, timeline redacted=true), self-heal (4 suggestions, applied=none, nothing deleted). Demo events purged to keep the committed db honest.
+
+Commit: cycle 43 committed on branch main.

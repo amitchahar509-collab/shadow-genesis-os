@@ -19,6 +19,7 @@ import { Acquisition } from "./acquisition";
 import { Revenue } from "./revenue";
 import { DeploymentCloud } from "./deployment-cloud";
 import { Observability } from "./observability";
+import { SecurityEngine } from "./security-engine";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -214,6 +215,9 @@ export function VentureIntelligence() {
 
       {/* ===== Enterprise observability (V10 Module 5) ===== */}
       <Observability />
+
+      {/* ===== Enterprise security (V10 Module 6) ===== */}
+      <SecurityEngine />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />

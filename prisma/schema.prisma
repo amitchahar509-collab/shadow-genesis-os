@@ -360,6 +360,28 @@ model SecurityFinding {
   resolvedAt  DateTime?
 }
 
+// ============ V10 MODULE 6 — ENTERPRISE SECURITY ENGINE ============
+// A real security timeline. Every event carries evidence + confidence + label;
+// vulnerabilities are NEVER fabricated — an event exists only for a real detection.
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique // SEC-000001
+  kind        String   // SECRET_DETECTED | PROMPT_INJECTION | COMMAND_BLOCKED | DEP_ADVISORY | FILE_REJECTED | RATE_LIMIT | PERMISSION_DENIED | SELF_HEAL
+  severity    String   @default("MEDIUM") // CRITICAL | HIGH | MEDIUM | LOW | INFO
+  source      String   // where it was detected (agent/route/scanner)
+  detail      String   // human-readable, ALREADY REDACTED
+  evidence    String   @default("[]") // JSON — redacted proof (kind of secret, matched pattern, span), never the raw secret
+  confidence  Float    @default(0.7) // 0-1
+  label       String   @default("HEURISTIC") // REAL | HEURISTIC | SIMULATION | UNKNOWN
+  verdict     String   @default("WARNING") // SAFE | WARNING | BLOCKED
+  status      String   @default("OPEN") // OPEN | RESOLVED | ACKNOWLEDGED
+  remediation String   @default("") // recommended fix
+  createdAt   DateTime @default(now())
+
+  @@index([kind])
+  @@index([severity])
+}
+
 // ============ SANDBOX (V3 Phase 3) ============
 model Sandbox {
   id          String   @id @default(cuid())

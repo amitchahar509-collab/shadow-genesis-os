@@ -1,6 +1,7 @@
 /** Live event bus — runtime → DB → socket.io. No fake templates. */
 
 import { db } from "@/lib/db";
+import { redactSecrets } from "./security-engine/secrets";
 
 export type ActivityLevel = "INFO" | "SUCCESS" | "WARNING" | "ERROR" | "CRITICAL";
 export type ActivityCategory = "TASK" | "BUILD" | "TEST" | "DEPLOY" | "SECURITY" | "MEMORY" | "DECISION" | "RESEARCH" | "TOOL" | "SYSTEM" | "OPPORTUNITY" | "REVENUE" | "GROWTH";
@@ -23,12 +24,14 @@ export function subscribe(fn: Subscriber): () => void { subscribers.add(fn); ret
 function emitLocal(e: ActivityEvent) { for (const fn of subscribers) { try { fn(e); } catch {} } }
 
 export async function emit(event: ActivityEvent): Promise<void> {
-  emitLocal(event);
+  // V10 Module 6 — SEC-2: redact any secret before it reaches a sink (DB, socket, subscribers).
+  const safe: ActivityEvent = { ...event, detail: redactSecrets(event.detail) };
+  emitLocal(safe);
   try {
-    await db.activityLog.create({ data: { agent: event.agent, action: event.action, detail: event.detail, level: event.level, category: event.category, taskId: event.taskId ?? null } });
+    await db.activityLog.create({ data: { agent: safe.agent, action: safe.action, detail: safe.detail, level: safe.level, category: safe.category, taskId: safe.taskId ?? null } });
   } catch (e) { console.error("[event-bus] DB write failed:", e instanceof Error ? e.message : e); }
   try {
-    await fetch("http://127.0.0.1:3030/broadcast", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(event), signal: AbortSignal.timeout(2_000) }).catch(() => {});
+    await fetch("http://127.0.0.1:3030/broadcast", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(safe), signal: AbortSignal.timeout(2_000) }).catch(() => {});
   } catch {}
 }
 
