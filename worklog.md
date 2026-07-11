@@ -734,3 +734,21 @@ Work Log:
 Verification: tsc 0; eslint 0; 213/213 (was 207) on the committed db AND a fresh CI-style db. LIVE (real model, $0): created a real GROWTH skill lineage (v1 honest-growth guidance via setPrompt), ran the real GROWTH agent -> EX-000027 SUCCESS on gemini/gemini-flash-lite-latest (511 real tokens, $0, 19.3s incl. free-tier fallback walk); v1 success 0->1 from the RUN ITSELF (no manual POST); marketplace sync then listed the first real SKILL - PLG-000032 GROWTH, runs=1 perf=100 trust=22 (volume-damped, honestly unproven).
 
 Commit: cycle 32 committed on branch main.
+
+---
+Task ID: 35
+Agent: Claude Code (Fable 5) - cycle 33: installed AGENT plugins become EXECUTABLE - TemplateAgent + marketplace runtime gate
+
+Task: "Continue with the next gap." Audit: the evolve -> publish -> install lifecycle dead-ended - a CREATE_SPECIALIST AgentTemplate could be listed and installed but nothing could ever RUN it, and install/uninstall had zero runtime effect. (CustomTool rows have no executable body, so TOOL installs honestly cannot gate execution - documented, not faked.)
+
+Work Log:
+- TemplateAgent (agents/template-agent.ts, extends BaseAgent): any AgentTemplate row becomes a runnable specialist. run() merges defaultContext under caller context, drives ONE real routed llm call from the template's systemPrompt (+ an honest output contract: findings/recommendations, never invent data), writes SPECIALIST_REPORT.md artifact, records episodic memory. A specialist IS its prompt: no reachable model -> throw -> honest FAILED, no heuristic stand-in. Executions land under the template KEY - exactly what marketplace refreshStats and evolution metrics already read, so specialists earn real stats and can themselves be evolved (BaseAgent's evolved-prompt injection applies to template keys too).
+- resolveExecutableAgent(name): builtins resolve ungated (they ARE the OS). Templates gate on the marketplace row: no plugin -> 409 publish-first; LISTED -> 409 install-first; DEPRECATED -> 410 withdrawn; INSTALLED -> TemplateAgent. Install/uninstall/deprecate now have REAL runtime consequences.
+- API: POST /api/genesis/agents resolves via resolveExecutableAgent (any installed specialist executable through the same endpoint, result carries kind BUILTIN|TEMPLATE); GET adds `specialists` (installed template plugins) next to builtins.
+- Tests (template-agent.test.ts, 6): builtin ungated; unknown 404 / unlisted publish-first / LISTED install-first; DEPRECATED 410; INSTALLED resolves + seamed execute -> SUCCESS + artifact + execution under template key + refreshStats invocations=1 perf=100; no-model -> honest FAILED with zero artifacts; defaultContext merges under caller context.
+- Full-suite flake triaged honestly: 1 committed-db failure was approvals.test "approved external POST passes the gate" timing out at 5s - a real outbound socket hung (same transient network as the earlier fonts.gstatic.com build failure); passes in isolation (1.7s) and the full committed-db rerun was 219/219. Not related to this change.
+
+Verification: tsc 0; eslint 0; 219/219 (was 213) on committed AND fresh CI-style db. LIVE full lifecycle ($0): user-authored template GROWTH_CLAIM_AUDITOR created -> published PLG-000033 (LISTED) -> resolve REFUSED 409 -> installed -> resolved TEMPLATE -> REAL run EX-000027 SUCCESS on gemini/gemini-flash-latest (202 real tokens, $0, fallbackDepth 0) producing a real audit report (flagged the $47B market-size claim) -> refreshStats runs=1 perf=100 trust=18 (volume-damped) -> uninstalled -> resolve REFUSED (gate holds live) -> re-installed.
+- Anomaly chased during verification: a paid-model 402 usage row appeared under EX-000027 - turned out to be YESTERDAY's row from a different run: nextExecutionNumber's recent-50 scan re-mints executionIds after test wipes delete the high-water row, cross-linking unrelated runs' LlmUsage trails. Today's call was clean (free mode, $0, no paid attempt). Logged as the next gap: execution-identity integrity.
+
+Commit: cycle 33 committed on branch main.
