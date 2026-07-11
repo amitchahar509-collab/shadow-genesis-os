@@ -1,31 +1,34 @@
-/** World Scanner Engine (V8 G1) — discover problems, no human idea required.
+/** World Scanner Engine (V8 G1 + V10 Module 1) — discover problems, no human
+ *  idea required.
  *
- * Honest reframing: real web scanning of "market shifts / trends" needs a
- * search key (the browser tool is a no-op without one). What Genesis CAN scan
- * without any external key is its OWN accumulated real intelligence:
- *
+ * Sources:
  *   REALITY       — deployed-product signals (G9): errors, negative feedback,
  *                   feature requests = real customer complaints / community pain.
  *   MARKET_GAP    — marketplace demand gaps (G8): industries with standing need
  *                   that no listed app serves = real business problems.
  *   FAILED_VENTURE— killed opportunities: markets that repeatedly resist
  *                   solutions = a real, hard problem.
- *   WEB           — optional: web search when a provider key is present.
+ *   WEB           — V10: LIVE internet connectors (HN, Reddit, GitHub Issues,
+ *                   StackOverflow, Google News, RSS, App Store reviews). Every
+ *                   WEB evidence entry carries the REAL source URL and real
+ *                   engagement counts; pain grouping is HEURISTIC and says so.
  *
  * Each discovered problem is graded on frequency (real occurrence count),
  * urgency, who-suffers, current alternatives, and an opportunity score, then
  * AEGIS-verified — so a computed MARKET_GAP (weak evidence) can never pose as a
- * heavily-witnessed REALITY problem. Nothing is fabricated: with no signals and
- * no key, the scan finds little, honestly. Discovered problems can be promoted
- * into the build pipeline (World Signals → AEGIS → Venture → Customer Sim).
+ * heavily-witnessed REALITY problem. Nothing is fabricated: with no signals the
+ * scan finds little, honestly. Discovered problems can be promoted into the
+ * build pipeline (World Signals → AEGIS → Venture → Customer Sim).
  */
 
 import { db } from "@/lib/db";
 import { assertClaim } from "../aegis";
 import { marketplaceStats } from "../marketplace";
 import { classifyCategory } from "../demand";
-import { pickProvider } from "../types";
 import { emit } from "../event-bus";
+import { scanWeb, type FetchLike, type PainCluster } from "./connectors";
+
+export { connectorHealth, scanWeb } from "./connectors";
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Math.round(n)));
 const urgencyBonus = (u: string) => (u === "HIGH" ? 25 : u === "MEDIUM" ? 15 : 5);
@@ -98,13 +101,37 @@ async function scanFailedVentures(): Promise<Candidate[]> {
   }));
 }
 
-export interface ScanResult { mode: string; sourcesScanned: string[]; problems: WorldProblemResult[] }
+/** WEB (V10): map live pain clusters to problem candidates. Evidence = real URLs. */
+function webCandidates(clusters: PainCluster[]): Candidate[] {
+  return clusters.slice(0, 8).map((c) => {
+    const top = c.signals[0];
+    return {
+      statement: `"${c.key}" pain: ${top.title.slice(0, 160)} (${c.frequency} independent signal(s) across ${c.sources.join("/")})`,
+      whoSuffers: `${c.key} users`, frequency: c.frequency,
+      urgency: c.urgency === "CRITICAL" ? "HIGH" as const : c.urgency === "HIGH" ? "HIGH" as const : c.urgency === "MEDIUM" ? "MEDIUM" as const : "LOW" as const,
+      alternatives: c.alternatives, dataSource: "WEB" as const,
+      evidence: c.signals.slice(0, 5).map((sig) => ({
+        stance: "SUPPORT" as const, summary: `${sig.title.slice(0, 140)} [engagement ${sig.engagement}]`,
+        source: sig.url || `${sig.source}:${sig.title.slice(0, 40)}`, sourceType: "WEB" as const,
+        weight: Math.min(0.9, 0.5 + Math.min(0.4, sig.engagement / 500)),
+      })),
+    };
+  });
+}
 
-/** Scan the world (Genesis's accumulated reality) for problems worth solving. */
-export async function scanWorld(opts?: { focus?: string; limit?: number }): Promise<ScanResult> {
-  const mode = pickProvider() === "none" ? "NO_WEB" : "WEB_ENABLED";
-  const [reality, gaps, failed] = await Promise.all([scanReality(), scanMarketGaps(), scanFailedVentures()]);
-  const candidates = [...reality, ...gaps, ...failed];
+export interface ScanResult { mode: string; sourcesScanned: string[]; connectorErrors?: Record<string, string>; problems: WorldProblemResult[] }
+
+/** Scan the world — Genesis's accumulated reality plus the LIVE internet — for
+ *  problems worth solving. Web scanning is skipped under bun test unless a fetch
+ *  seam is injected (network-free tests, same discipline as the llm router). */
+export async function scanWorld(opts?: { focus?: string; limit?: number; web?: boolean; fetchImpl?: FetchLike }): Promise<ScanResult> {
+  const webAllowed = opts?.web !== false && (!!opts?.fetchImpl || process.env.NODE_ENV !== "test" || process.env.GENESIS_TEST_ALLOW_LLM === "1");
+  const [reality, gaps, failed, web] = await Promise.all([
+    scanReality(), scanMarketGaps(), scanFailedVentures(),
+    webAllowed ? scanWeb({ focus: opts?.focus, fetchImpl: opts?.fetchImpl }).catch(() => null) : Promise.resolve(null),
+  ]);
+  const mode = web && web.connectorsUsed.length ? "WEB_LIVE" : "INTERNAL_ONLY";
+  const candidates = [...reality, ...gaps, ...failed, ...(web ? webCandidates(web.clusters) : [])];
   // Rank by a provisional score before persisting (frequency + urgency + evidence volume).
   candidates.sort((a, b) => (b.frequency * 10 + urgencyBonus(b.urgency) + b.evidence.length * 5) - (a.frequency * 10 + urgencyBonus(a.urgency) + a.evidence.length * 5));
   const limit = opts?.limit ?? 12;
@@ -128,9 +155,9 @@ export async function scanWorld(opts?: { focus?: string; limit?: number }): Prom
   }
   problems.sort((a, b) => b.opportunityScore - a.opportunityScore);
 
-  const sourcesScanned = ["REALITY", "MARKET_GAP", "FAILED_VENTURE", ...(mode === "WEB_ENABLED" ? ["WEB"] : [])];
-  await emit({ agent: "WORLD_SCANNER", action: "SCAN", detail: `discovered ${problems.length} problem(s) from ${reality.length} reality + ${gaps.length} gap + ${failed.length} failed signals (${mode})`, level: "INFO", category: "OPPORTUNITY" });
-  return { mode, sourcesScanned, problems };
+  const sourcesScanned = ["REALITY", "MARKET_GAP", "FAILED_VENTURE", ...(web?.connectorsUsed ?? [])];
+  await emit({ agent: "WORLD_SCANNER", action: "SCAN", detail: `discovered ${problems.length} problem(s) from ${reality.length} reality + ${gaps.length} gap + ${failed.length} failed + ${web ? web.signals : 0} live web signals (${mode})`, level: "INFO", category: "OPPORTUNITY" });
+  return { mode, sourcesScanned, ...(web && Object.keys(web.connectorErrors).length ? { connectorErrors: web.connectorErrors } : {}), problems };
 }
 
 /** Promote a discovered problem into the build pipeline as a trackable Opportunity. */

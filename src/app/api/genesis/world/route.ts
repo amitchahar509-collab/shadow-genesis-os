@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { scanWorld, promoteToOpportunity } from "@/lib/genesis/agent-runtime/world-scanner";
+import { scanWorld, promoteToOpportunity, connectorHealth } from "@/lib/genesis/agent-runtime/world-scanner";
 import { guard, audit } from "@/lib/genesis/agent-runtime/auth";
 
 /** GET /api/genesis/world — discovered problems (the WORLD_PROBLEM_GRAPH).
- *  ?dataSource=REALITY|MARKET_GAP|FAILED_VENTURE  ?status=DISCOVERED|PROMOTED  ?limit=30
+ *  ?dataSource=REALITY|MARKET_GAP|FAILED_VENTURE|WEB  ?status=DISCOVERED|PROMOTED  ?limit=30
+ *  ?connectors=1 → live-internet connector health (V10 Module 1)
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  if (searchParams.has("connectors")) return NextResponse.json({ connectors: connectorHealth() });
   const dataSource = searchParams.get("dataSource") ?? undefined;
   const status = searchParams.get("status") ?? undefined;
   const limit = Math.min(Number(searchParams.get("limit")) || 30, 100);

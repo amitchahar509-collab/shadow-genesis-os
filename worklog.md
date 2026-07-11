@@ -817,3 +817,20 @@ Work Log:
 Verification: tsc 0; eslint 0 (exit verified); full suite 232/233 with ONE load-induced timeout flake (demand knowledge-graph test at 5.5s during a 197s run - passes 7/7 in isolation at 6.8s; same transient class as the approvals flake already on record). Audit doc committed.
 
 Commit: cycle 37 committed on branch main.
+
+---
+Task ID: 40
+Agent: Claude Code (Fable 5) - cycle 38: V10 Module 1 - REAL internet intelligence (live web connectors)
+
+Task: V10 Module 1 - upgrade the World Scanner from internal-only sources to LIVE internet intelligence with real connectors, pain extraction, clustering, frequency/urgency analysis, and automatic opportunity creation. Never fake a source.
+
+Work Log:
+- connectors.ts: 7 real FREE/env-gated connectors - Hacker News (Algolia API), Reddit (api.reddit.com listing JSON), GitHub Issues (search API, optional GITHUB_TOKEN), StackOverflow (Stack Exchange API), Google News (RSS search), generic RSS (GENESIS_RSS_FEEDS), App Store reviews (iTunes RSS, GENESIS_APPSTORE_IDS, keeps only <=3-star = real complaints). Every signal carries sourceType REAL, its live URL, and real engagement (points/comments/votes/answers). Honest tiers for the rest: producthunt KEY_REQUIRED (PRODUCTHUNT_API_TOKEN); playstore/trustpilot/g2/capterra UNAVAILABLE (partner-only APIs) - listed with status, never scraped, never faked. Dependency-free RSS parser (item/entry, CDATA, entities).
+- Pain intelligence (HEURISTIC, labeled): PAIN_PATTERNS regex scoring (patterns x2 + log2 engagement; engagement alone never makes pain); two-pass clustering by globally-most-shared key term (fixed during dev: first-term keying let "wish" beat "invoice"); DOMAIN_NOISE filter (fixed after live run 1: "Show HN"/"Ask HN" idioms dominated keys); focused-scan relevance gate (fixed after live run 2: "frustrating" alone pulled motorsport articles - focus tokens must appear in the signal); competitor capture from "alternative to X"; urgency from real engagement/frequency thresholds.
+- scanWeb(): all available searchable connectors in parallel, 10s per-connector timeout, per-connector errors RECORDED and returned (never papered over), URL dedupe.
+- scanWorld integration: WEB candidates join REALITY/MARKET_GAP/FAILED_VENTURE; evidence entries carry the real URL + engagement into AEGIS; mode is now honest - WEB_LIVE vs INTERNAL_ONLY (the old "WEB_ENABLED" label lied - it keyed off LLM provider presence); sourcesScanned lists actual connector names; connectorErrors surfaced in the result; network locked out under bun test unless a fetch seam is injected (same discipline as llmDisabled). GET /api/genesis/world?connectors=1 -> connector health.
+- Tests (web-connectors.test.ts, 8): per-connector payload parsing (HN/Reddit/GitHub/SO/RSS+CDATA+entities); pain selectivity (neutral high-engagement text scores 0); clustering frequency/urgency/competitor capture; unavailable connectors never searched; scanWeb error recording; scanWorld seam integration persisting REAL urls; test-env network lockout (INTERNAL_ONLY without a seam).
+
+Verification: tsc 0; eslint 0; 241/241 (was 233) on committed AND fresh CI-style db. LIVE (3 real scans): mode WEB_LIVE with hackernews/github-issues/stackoverflow/googlenews live (reddit 403 bot-wall + one SO timeout surfaced HONESTLY in connectorErrors); 16+ real WorldProblems persisted with real evidence URLs (news.ycombinator.com items, github repos, Google News articles); focused re-scan showed the relevance gate cutting off-topic noise. Known limits recorded: reddit needs an authed path on this IP; heuristic relevance is fuzzy at the edges - both labeled, neither faked.
+
+Commit: cycle 38 committed on branch main.
