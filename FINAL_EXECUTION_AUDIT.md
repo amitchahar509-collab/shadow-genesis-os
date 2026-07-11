@@ -44,7 +44,7 @@ HUD panels for pipeline, boardroom, marketplace, models, costs, evolution, appro
 | # | Module | Status |
 |---|--------|--------|
 | 1 | Real internet intelligence | **MISSING** — no external connector; pain-extraction exists only over internal signals |
-| 2 | Autonomous customer acquisition | PARTIAL — approval-gated channel *experiments* exist; **no outreach content generation, no lead finding, no reply tracking** |
+| 2 | Autonomous customer acquisition | **DONE (cycle 39)** — real lead discovery (GitHub orgs/HN/PH), ICP generator, DNA→lead matching, outreach drafts (LLM+heuristic), approval-gated send (never auto), CRM (Lead/OutreachDraft/LeadInteraction), reply tracking → reality loop, customer intelligence → tasks, dashboard panel |
 | 3 | Revenue execution | **MISSING** — no payment provider; revenue agent outputs pricing models (HEURISTIC, labeled); no MRR/ARR/churn (no real revenue exists — honest) |
 | 4 | Deployment cloud | PARTIAL — local pipeline real; cloud targets MISSING |
 | 5 | Enterprise observability | PARTIAL — real metrics/audit/usage/benchmarks; OTel/Sentry/Grafana/Prometheus MISSING |

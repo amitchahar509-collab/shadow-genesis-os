@@ -15,6 +15,7 @@ import { Marketplace } from "./marketplace";
 import { WorldScanner } from "./world-scanner";
 import { ProviderStatus } from "./provider-status";
 import { Plugins } from "./plugins";
+import { Acquisition } from "./acquisition";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -198,6 +199,9 @@ export function VentureIntelligence() {
 
       {/* ===== Demand matching ===== */}
       <DemandGraph />
+
+      {/* ===== Customer acquisition (V10 Module 2) ===== */}
+      <Acquisition />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />

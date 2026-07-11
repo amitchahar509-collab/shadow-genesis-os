@@ -1157,3 +1157,67 @@ model CustomerPersona {
   @@index([simulationId])
 }
 
+// ============ V10 MODULE 2 — AUTONOMOUS CUSTOMER ACQUISITION (CRM) ============
+// Every Lead is a REAL public entity with an evidence URL. People/emails are
+// NEVER fabricated: contactType records whether a real public contact exists.
+// Outreach stays DRAFT until a human approves; nothing is sent automatically.
+model Lead {
+  id           String   @id @default(cuid())
+  leadId       String   @unique // LEAD-000001
+  dnaId        String? // which Product DNA this is a lead for
+  subject      String? // opportunityId | companyKey the campaign targets
+  name         String // real org/company/project name
+  source       String // connector: github-orgs | hackernews | producthunt | rss
+  evidenceUrl  String // REAL public URL — required; no lead without provenance
+  description  String   @default("")
+  industry     String   @default("UNKNOWN")
+  contactType  String   @default("UNKNOWN") // PUBLIC_URL | NONE | UNKNOWN — never a fabricated email
+  contactRef   String? // a REAL public handle/URL (e.g. GitHub org page) — never invented
+  signalText   String   @default("") // the real text that surfaced this lead
+  icpScore     Float    @default(0) // 0-100 fit vs the Product DNA
+  matchTier    String   @default("LOW") // HIGH | MEDIUM | LOW
+  matchReason  String   @default("") // WHY it matched (explainable)
+  buyingIntent String   @default("UNKNOWN") // HIGH | MEDIUM | LOW | UNKNOWN — HEURISTIC from signal
+  status       String   @default("NEW") // NEW | QUALIFIED | DRAFTED | CONTACTED | REPLIED | CUSTOMER | LOST
+  dataLabel    String   @default("REAL") // REAL | HEURISTIC | UNKNOWN
+  notes        String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([dnaId])
+  @@index([status])
+}
+
+model OutreachDraft {
+  id          String   @id @default(cuid())
+  draftId     String   @unique // OUT-000001
+  leadId      String
+  channel     String // EMAIL | LINKEDIN | TWITTER_DM | CONTACT_FORM
+  subject     String   @default("")
+  body        String
+  followUps   String   @default("[]") // JSON string[] — follow-up sequence drafts
+  status      String   @default("DRAFT") // DRAFT | PENDING_APPROVAL | APPROVED | REJECTED | EDITED | SENT
+  approvalId  String? // ApprovalRequest.requestId once queued
+  mode        String   @default("HEURISTIC") // LLM | HEURISTIC — how the copy was written
+  editedBody  String? // human edit before/after approval
+  decidedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([status])
+}
+
+model LeadInteraction {
+  id            String   @id @default(cuid())
+  interactionId String   @unique // INT-000001
+  leadId        String
+  kind          String // REPLY_INTERESTED | REPLY_NOT_INTERESTED | NO_REPLY | MEETING_BOOKED | BECAME_CUSTOMER | LOST | NOTE
+  note          String   @default("")
+  recordedBy    String   @default("human") // real replies are human-entered — never auto-generated
+  signalId      String? // RealitySignal produced by feeding this back into the reality loop
+  createdAt     DateTime @default(now())
+
+  @@index([leadId])
+}
+
