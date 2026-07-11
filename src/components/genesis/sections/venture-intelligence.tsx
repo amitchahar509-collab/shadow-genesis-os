@@ -18,6 +18,7 @@ import { Plugins } from "./plugins";
 import { Acquisition } from "./acquisition";
 import { Revenue } from "./revenue";
 import { DeploymentCloud } from "./deployment-cloud";
+import { Observability } from "./observability";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -210,6 +211,9 @@ export function VentureIntelligence() {
 
       {/* ===== Deployment cloud (V10 Module 4) ===== */}
       <DeploymentCloud />
+
+      {/* ===== Enterprise observability (V10 Module 5) ===== */}
+      <Observability />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />

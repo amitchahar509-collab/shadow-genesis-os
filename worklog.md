@@ -889,3 +889,21 @@ Work Log:
 Verification: tsc 0; eslint 0; 270/270 (was 260) on committed AND fresh CI-style db. LIVE on the real db: provider zero-state honest (all no-key except docker=verified local CLI); planned deploy -> AWAITING_APPROVAL + real APR-000001; approved -> markDeployed ran a REAL HTTP health check against a live host -> HEALTHY; second deploy + rollback re-activated the prior; then PURGED all verification records (0 deployment rows left - never leave fake deploys in the committed db).
 
 Commit: cycle 41 committed on branch main.
+
+---
+Task ID: 44
+Agent: Claude Code (Fable 5) - cycle 42: V10 Module 5 - Enterprise Observability (Prometheus/OTLP/Grafana/Sentry over real telemetry)
+
+Task: V10 Module 5 - OpenTelemetry, Sentry, Grafana, Prometheus, audit logs, distributed tracing, cost + latency analytics. Never fabricate metrics.
+
+Phase 0 audit (reuse, no rebuild): Genesis already records REAL telemetry - AgentExecution (durations/status/tokens), ToolCall (durations/status), LlmUsage (cost/latency/tokens/fallback), ActivityLog, AuditLog (G10), plus observability/metrics.ts (computeAgentMetrics/getMetricsSummary/getCostSummary) and router.usageSummary. Module 5 EXPOSES this in the standard formats real tools consume - no new data capture, nothing fabricated.
+
+Work Log:
+- telemetry/index.ts: prometheusMetrics() - real Prometheus exposition text (counters: executions by status, tool calls by status, llm calls/tokens/cost; gauges: execution + llm latency quantiles, cost by provider) from real 24h rows. buildTrace(executionId) - assembles a distributed trace from the REAL hierarchy: root span = the execution, child spans = its real ToolCall + LlmUsage rows with real start/duration/status (failed tool = ERROR span). otlpTrace() - wraps it as OTLP resourceSpans JSON a collector ingests (32-char traceId, status codes). latencyAnalytics() - real p50/p95/p99/max/avg over execution/tool/llm durations. costAnalytics() - real cost/tokens by provider+model (ESTIMATE-labeled, free=$0). observabilityBackends() (prometheus/grafana always on; otel/sentry key-gated). grafanaDashboard() - importable dashboard JSON whose panels query the real genesis_* metrics.
+- telemetry/exporters.ts (key-gated, fetch seam): exportErrorToSentry - parses a real Sentry DSN -> real store URL, forwards a real event (SENTRY_DSN gated, honest no-op otherwise). exportTraceToOtlp - POSTs the real OTLP payload to OTEL_EXPORTER_OTLP_ENDPOINT/v1/traces (gated). No config -> exported:false with a reason, never a fake success.
+- API: new /api/genesis/metrics/prometheus (text/plain; version=0.0.4 exposition - a real Prometheus scrape target), /api/genesis/telemetry (overview + ?trace=/?otlp=/?grafana=1/?latency=1/?cost=1; POST export-trace|export-error, guardWrite). Base /api/genesis/metrics (SystemMetric JSON) left untouched. Dashboard Observability panel (backend chips, latency percentile table, cost line) wired into Venture Intelligence.
+- Tests (telemetry.test.ts, 10): Prometheus format validity (every line name{labels} value); trace assembles the real exec->2 tools->1 llm hierarchy with the failed tool as an ERROR span; OTLP well-formed (4 spans, 32-char traceId, status code 2 present); latency percentiles ordered; cost aggregation (gemini $0); backends key-gating (otel flips on with endpoint); Grafana JSON references real metrics; exporters honest no-op without keys; configured Sentry hits the real store URL derived from the DSN; configured OTLP posts to /v1/traces.
+
+Verification: tsc 0; eslint 0; 280/280 (was 270) on committed AND fresh CI-style db. LIVE on the real db (read-only, nothing to purge): backends prometheus/grafana on, otel/sentry off (honest); real Prometheus exposition (25 SUCCESS execs, 8 ERROR/5 SUCCESS tool calls, 50 llm calls - valid format); real latency (exec p95 698ms, llm p95 1834ms over 1629 real calls); real cost $0.481215 from the LlmUsage ledger (openrouter, gemini $0). All figures trace to real rows - zeros/values are honest, never fabricated.
+
+Commit: cycle 42 committed on branch main.
