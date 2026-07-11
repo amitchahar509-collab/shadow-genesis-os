@@ -16,6 +16,7 @@ import { WorldScanner } from "./world-scanner";
 import { ProviderStatus } from "./provider-status";
 import { Plugins } from "./plugins";
 import { Acquisition } from "./acquisition";
+import { Revenue } from "./revenue";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -202,6 +203,9 @@ export function VentureIntelligence() {
 
       {/* ===== Customer acquisition (V10 Module 2) ===== */}
       <Acquisition />
+
+      {/* ===== Revenue execution (V10 Module 3) ===== */}
+      <Revenue />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />

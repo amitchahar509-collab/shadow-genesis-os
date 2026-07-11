@@ -853,3 +853,21 @@ Work Log:
 Verification: tsc 0; eslint 0 (fixed set-state-in-effect in the panel); 251/251 (was 241) on committed AND fresh CI-style db. LIVE ($0, real internet): DNA-000001 (Devtools) -> ICP HIGH-intent/66-confidence -> discoverLeads hit REAL github-orgs+hackernews, found 8 real orgs (obsproject, CapSoftware - actual screen-recording projects) each with a real evidence URL + PUBLIC_URL contact, zero fabricated emails -> Gemini-written EMAIL draft that referenced the lead's REAL project -> approval queued, pre-approval send BLOCKED, approved + human-sent -> CONTACTED -> logged a reply -> RealitySignal RS-000001 (CONVERSION) fed the reality loop. Then PURGED the live residue: the injected BECAME_CUSTOMER outcome is a SIMULATION and must not sit in the committed db as a real customer (leads/drafts/interactions/dna/signal/approval all removed; residue check 0/0/0).
 
 Commit: cycle 39 committed on branch main.
+
+---
+Task ID: 42
+Agent: Claude Code (Fable 5) - cycle 40: V10 Module 3 - Revenue Execution (key-gated providers, honest unit economics)
+
+Task: V10 Module 3 - Stripe/LemonSqueezy/Polar/Paddle, revenue dashboard (MRR/ARR/CAC/LTV/churn), pricing experiments, subscription analytics, unit economics. Cardinal rule: never fabricate revenue - money not earned is $0/UNKNOWN.
+
+Phase 0 audit (reuse, no duplication): RevenueEvent (the real ledger - CHARGE/REFUND/SUBSCRIPTION/CHURN + amount + customerId), RevenueModel (HEURISTIC pricing from the RevenueAgent - left intact), GrowthExperiment kind=PRICING (already existed for pricing A/Bs), GrowthMetric (for marketing spend), Module-1 FetchLike seam. Extended RevenueEvent additively (eventId/provider/externalId/dataLabel/interval/status/occurredAt + @@unique([provider,externalId]) for idempotent sync) - no new ledger model, no rebuild.
+
+Work Log:
+- providers.ts: 4 KEY-GATED payment connectors - Stripe (subscriptions + charges, real /v1 API), LemonSqueezy, Polar, Paddle. available() = real API key present; pull() normalizes real subscriptions/charges to a common shape (amounts in cents -> USD, year|month interval, ACTIVE|CANCELED). No key -> honestly unavailable, never a mock dollar.
+- revenue-engine/index.ts: syncProvider (pull -> RevenueEvent rows, idempotent per provider+externalId, refuses without a key, network-locked under tests); recordRevenueEvent (manual human-confirmed REAL event); recordMarketingSpend (so CAC is computable); computeUnitEconomics - EVERY metric carries a label {REAL|UNKNOWN|SIMULATION}: MRR (active subs, year/12 normalized), ARR (MRR x12), ARPU, churn (UNKNOWN below 5 real subs - honest small-sample guard), LTV (ARPU/monthly churn, only when both REAL), CAC (real spend / real customers), LTV:CAC, gross/refunds/net. With zero real revenue EVERYTHING is $0/UNKNOWN by construction. proposePricingExperiment (reuses GrowthExperiment kind=PRICING, dataSource NONE until real conversions). revenueOverview + provider health.
+- API: extended /api/genesis/revenue (preserved the legacy models+events GET; added ?overview=1 / ?economics=1 + POST sync|event|spend|pricing, guardWrite). Dashboard Revenue panel (labeled stat tiles - REAL figures in emerald, UNKNOWN greyed with the label chip; provider connection chips; honesty footer) wired into Venture Intelligence.
+- Tests (revenue-engine.test.ts, 9): zero real revenue -> all UNKNOWN/$0; sync key-gated (refuses without key); connected Stripe -> REAL MRR $70 / ARR $840 / ARPU $35 (canceled sub excluded, correct); idempotent re-sync (0 new, no dupes); churn UNKNOWN<5 then REAL; CAC UNKNOWN without spend then REAL; refunds reduce net; test-env network lockout; pricing experiment PROPOSED/dataSource NONE.
+
+Verification: tsc 0; eslint 0; 260/260 (was 251) on committed AND fresh CI-style db. LIVE on the real db: providers all no-key -> ZERO-STATE hasRealRevenue=false, MRR/ARR/LTV/CAC all UNKNOWN, net $0 (honest); then 2 manual REAL subs ($29/mo + $99/yr) + $120 spend -> MRR $37.25 (=$29 + $99/12, year correctly normalized), ARR $447, ARPU $18.63, CAC $60 - all labeled REAL; then PURGED (verification events are not earned revenue) -> back to hasRealRevenue=false, committed db carries 0 revenue rows.
+
+Commit: cycle 40 committed on branch main.

@@ -45,7 +45,7 @@ HUD panels for pipeline, boardroom, marketplace, models, costs, evolution, appro
 |---|--------|--------|
 | 1 | Real internet intelligence | **MISSING** — no external connector; pain-extraction exists only over internal signals |
 | 2 | Autonomous customer acquisition | **DONE (cycle 39)** — real lead discovery (GitHub orgs/HN/PH), ICP generator, DNA→lead matching, outreach drafts (LLM+heuristic), approval-gated send (never auto), CRM (Lead/OutreachDraft/LeadInteraction), reply tracking → reality loop, customer intelligence → tasks, dashboard panel |
-| 3 | Revenue execution | **MISSING** — no payment provider; revenue agent outputs pricing models (HEURISTIC, labeled); no MRR/ARR/churn (no real revenue exists — honest) |
+| 3 | Revenue execution | **DONE (cycle 40)** — key-gated Stripe/LemonSqueezy/Polar/Paddle sync (real subscriptions/charges → ledger, idempotent); unit economics (MRR/ARR/ARPU/churn/LTV/CAC/LTV:CAC) computed from REAL rows only, $0/UNKNOWN when no real revenue; marketing-spend→CAC; pricing experiments (reuse GrowthExperiment); revenue dashboard panel |
 | 4 | Deployment cloud | PARTIAL — local pipeline real; cloud targets MISSING |
 | 5 | Enterprise observability | PARTIAL — real metrics/audit/usage/benchmarks; OTel/Sentry/Grafana/Prometheus MISSING |
 | 6 | Security | PARTIAL — security agent scan + release blocking, approval-gated api tool; OWASP/dep-scan/secrets/SBOM/prompt-injection detection MISSING |

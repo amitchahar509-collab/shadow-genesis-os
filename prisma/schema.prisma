@@ -442,6 +442,18 @@ model RevenueEvent {
   customerId  String?
   metadata    String   @default("{}")
   createdAt   DateTime @default(now())
+  // V10 Module 3 — Revenue Execution (additive; legacy rows keep defaults)
+  eventId     String?  @unique // REV-000001
+  provider    String   @default("manual") // stripe | lemonsqueezy | polar | paddle | manual
+  externalId  String? // provider's own id (charge/subscription) — for idempotent sync
+  dataLabel   String   @default("REAL") // REAL (from a provider / confirmed) | SIMULATION (forecast only)
+  interval    String   @default("one_time") // month | year | one_time — drives MRR
+  status      String   @default("COMPLETED") // ACTIVE | CANCELED | COMPLETED | REFUNDED
+  occurredAt  DateTime @default(now()) // when the money actually moved (provider timestamp)
+
+  @@unique([provider, externalId])
+  @@index([type])
+  @@index([status])
 }
 
 // ============ V4 — GROWTH (Phase 5) ============
