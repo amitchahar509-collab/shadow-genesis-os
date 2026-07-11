@@ -360,6 +360,51 @@ model SecurityFinding {
   resolvedAt  DateTime?
 }
 
+// ============ V10 MODULE 7 — CUSTOMER SUCCESS ENGINE ============
+// REAL product signals only. A ProductEvent/SupportTicket exists solely for a
+// real reported event from a deployed product — Genesis never fabricates users,
+// usage, or tickets. With no product reporting, this layer is honestly empty.
+model ProductEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique // PE-000001
+  productKey  String   // the deployed product/company reporting — required (external origin)
+  userRef     String?  // anonymized real user id/hash — NEVER a fabricated identity
+  eventType   String   // PAGE_VIEW | FEATURE_USE | SIGNUP | ACTIVATION | SESSION_START | DROP_OFF | CHURN
+  feature     String?  // which feature (for FEATURE_USE / adoption)
+  sessionId   String?
+  value       Float    @default(1)
+  dataLabel   String   @default("REAL")
+  occurredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([productKey])
+  @@index([eventType])
+  @@index([userRef])
+}
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  ticketId    String   @unique // TICK-000001
+  productKey  String
+  userRef     String?  // real reporter (anonymized) — never invented
+  subject     String
+  body        String   @default("")
+  category    String   @default("QUESTION") // BUG | FEATURE_REQUEST | QUESTION | COMPLAINT | PRAISE
+  priority    String   @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  sentiment   Float    @default(0) // -1..1 (HEURISTIC from text)
+  status      String   @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  source      String   @default("manual") // email | in-app | slack | manual
+  taskId      String?  // improvement GenesisTask generated from this ticket
+  signalId    String?  // RealitySignal this ticket fed into
+  dataLabel   String   @default("REAL")
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  @@index([productKey])
+  @@index([status])
+  @@index([category])
+}
+
 // ============ V10 MODULE 6 — ENTERPRISE SECURITY ENGINE ============
 // A real security timeline. Every event carries evidence + confidence + label;
 // vulnerabilities are NEVER fabricated — an event exists only for a real detection.

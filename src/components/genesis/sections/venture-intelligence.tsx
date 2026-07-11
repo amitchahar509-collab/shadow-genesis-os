@@ -20,6 +20,7 @@ import { Revenue } from "./revenue";
 import { DeploymentCloud } from "./deployment-cloud";
 import { Observability } from "./observability";
 import { SecurityEngine } from "./security-engine";
+import { CustomerSuccess } from "./customer-success";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -218,6 +219,9 @@ export function VentureIntelligence() {
 
       {/* ===== Enterprise security (V10 Module 6) ===== */}
       <SecurityEngine />
+
+      {/* ===== Customer success (V10 Module 7) ===== */}
+      <CustomerSuccess />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />

@@ -927,3 +927,21 @@ Work Log (all additive, no rebuild):
 Verification: tsc 0; eslint 0; 294/294 (was 280) on committed AND fresh CI-style db. LIVE end-to-end demo (then purged): secret detection (real anthropic+github keys redacted), injection (SAFE/BLOCKED), dependency audit of THIS repo (77 real components, 0 advisory hits - honest, cveFeed UNKNOWN), CycloneDX 1.5 SBOM (77 components), sandbox (destructive commands + pipe-to-shell BLOCKED, build SAFE), dashboard (threatScore 87 HIGH from real events, timeline redacted=true), self-heal (4 suggestions, applied=none, nothing deleted). Demo events purged to keep the committed db honest.
 
 Commit: cycle 43 committed on branch main.
+
+---
+Task ID: 46
+Agent: Claude Code (Fable 5) - cycle 44: V10 Module 7 - Customer Success Engine (real usage/tickets → improvement tasks, never fabricated users)
+
+Task: V10 Module 7 - track user behavior, analytics, feature usage, drop-off, satisfaction, support tickets, feedback; auto-generate improvement tasks. Never fabricate users/usage.
+
+Phase 0 (reuse, no duplication): reality-feedback.ingestSignal already turns FEEDBACK/FEATURE_REQUEST/ERROR/USAGE/RETENTION signals into GenesisTasks/GrowthMetrics - the ONLY legitimate source of REAL (non-simulated) product data (external ingestion boundary). Module 7 adds real ledgers + CS analytics and routes recurring real problems through that EXISTING task machinery. CustomerSimulation stays separate + SIMULATION-labeled.
+
+Work Log:
+- Schema (+2): ProductEvent (real usage events keyed by productKey + anonymized userRef - NEVER a fabricated identity; PAGE_VIEW/FEATURE_USE/SIGNUP/ACTIVATION/SESSION_START/DROP_OFF/CHURN) and SupportTicket (real tickets, category/priority/sentiment/status, links the taskId+signalId it generated).
+- customer-success/index.ts: recordProductEvent (ACTIVATION/CHURN also feed ingestSignal USAGE/RETENTION); createTicket (HEURISTIC sentiment from real text; BUG->ingestSignal ERROR, FEATURE_REQUEST->FEATURE_REQUEST, COMPLAINT->FEEDBACK - so real support drives real work, links back taskId/signalId); updateTicket; behaviorAnalytics (active users/sessions/top features, honest empty); dropOffFunnel (SIGNUP->ACTIVATION->RETAINED->CHURNED with REAL drop-off %, UNKNOWN where no denominator); satisfaction (CSAT + sentimentAvg, UNKNOWN below 5/3 real scored tickets); customerHealth (composite REAL score + HEALTHY/AT_RISK/CHURNING, UNKNOWN with no data); generateImprovementTasks (recurring >=2 ticket themes -> tasks via reality loop); customerSuccessOverview.
+- API /api/genesis/customer-success (guardWrite): event|ticket|ticket-status|improvement-tasks + GET views. Dashboard Customer Success panel (honest empty-state, stat tiles, ticket table with ->task markers) wired into Venture Intelligence.
+- Tests (customer-success.test.ts, 10): empty->UNKNOWN/honest-empty; real behavior analytics; funnel real drop-off %; BUG ticket auto-creates a task; sentiment praise/complaint; CSAT UNKNOWN->REAL across the threshold; recurring themes -> tasks; health from real usage+sentiment; ticket status/resolve; overview aggregation. Fixed: test type (r.taskId string|undefined vs toBe).
+
+Verification: tsc 0; eslint 0; 304/304 (was 294) on committed AND fresh CI-style db. LIVE end-to-end (then purged): empty health UNKNOWN; 4 real users / 12 events, funnel SIGNUP 4 -> ACTIVATION 3 (25% drop) -> RETAINED 2 (33% drop) -> CHURNED 1; real BUG ticket TICK-000001 -> auto task T-110 via reality signal RS-000005; satisfaction 3 complaints > 1 praise, sentiment -0.5; health 34 CHURNING with real drivers; recurring "performance" theme (2) -> 1 improvement task. Purged 12 events / 4 tickets / 8 signals to keep the committed db honest.
+
+Commit: cycle 44 committed on branch main.
