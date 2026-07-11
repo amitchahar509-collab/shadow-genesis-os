@@ -138,8 +138,11 @@ export async function promoteToOpportunity(problemId: string): Promise<{ opportu
   const p = await db.worldProblem.findUnique({ where: { problemId } });
   if (!p) return null;
   if (p.opportunityId) return { opportunityId: p.opportunityId };
-  const count = await db.opportunity.count();
-  const opportunityId = `OPP-${(count + 1).toString().padStart(6, "0")}`;
+  // numeric max-scan — count()+1 collides after any row deletion (V10 audit find)
+  const recent = await db.opportunity.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { opportunityId: true } });
+  let nextNum = 1;
+  for (const r of recent) { const m = r.opportunityId.match(/^OPP-(\d+)$/); if (m) nextNum = Math.max(nextNum, parseInt(m[1], 10) + 1); }
+  const opportunityId = `OPP-${nextNum.toString().padStart(6, "0")}`;
   await db.opportunity.create({ data: {
     opportunityId, title: p.statement.slice(0, 100), problem: p.statement, market: `${p.whoSuffers} — ${p.category}`,
     targetUsers: p.whoSuffers, potentialValue: clamp(p.opportunityScore / 10, 1, 10), difficulty: 5,
