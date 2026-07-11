@@ -1,7 +1,7 @@
 /** FREE_GENESIS_MODE tests — $0 models by default, premium only behind PREMIUM_MODE=true.
  *  The core guarantee: credits are NEVER burned accidentally. Network-free. */
 
-import { test, expect, beforeEach, afterEach } from "bun:test";
+import { test, expect, beforeEach, afterEach, afterAll } from "bun:test";
 import { db } from "@/lib/db";
 import { seedRegistry, rankModels, emergencyModel, premiumMode, FREE_SEED, syncWithCatalog } from "@/lib/genesis/agent-runtime/model-registry";
 import { resolveChain, resolveChainDynamic, callLlmRouted } from "@/lib/genesis/agent-runtime/router";
@@ -14,6 +14,9 @@ for (const k of KEYS) saved[k] = process.env[k];
 /** free-mode setup: keys present, PREMIUM_MODE ABSENT (the default state). */
 function freeMode(...keys: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of keys) process.env[k] = "sk-test"; }
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
+// the discovery test's fake catalog sync deactivates every premium openrouter row and
+// nothing re-activates them; leave the registry sane for whichever suite runs next
+afterAll(async () => { await seedRegistry(); await db.modelRegistry.updateMany({ data: { active: true } }); });
 beforeEach(async () => {
   await seedRegistry();
   await db.modelRegistry.updateMany({ data: { reliability: 50, avgLatencyMs: 0, measuredWins: 0, measuredLosses: 0, active: true } });

@@ -1,6 +1,6 @@
 /** V9 multi-brain tests: registry engine, measured learning, Fallback 2.0 retry, model arena, per-seat brains. Network-free. */
 
-import { test, expect, beforeEach, afterEach } from "bun:test";
+import { test, expect, beforeEach, afterEach, afterAll } from "bun:test";
 import { db } from "@/lib/db";
 import { seedRegistry, syncWithCatalog, rankModels, effectiveScore, recordModelOutcome, emergencyModel, CURATED_SEED } from "@/lib/genesis/agent-runtime/model-registry";
 import { callLlmRouted, resolveChainDynamic } from "@/lib/genesis/agent-runtime/router";
@@ -13,6 +13,9 @@ const saved: Record<string, string | undefined> = {};
 for (const k of KEYS) saved[k] = process.env[k];
 function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of on) process.env[k] = "sk-test"; process.env.PREMIUM_MODE = "true"; /* these suites assert PREMIUM ranking */ }
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
+// the catalog-sync test deactivates rows; don't rely on a later test's beforeEach to
+// undo it — leave the registry sane for whichever suite runs next (order-independence)
+afterAll(async () => { await seedRegistry(); await db.modelRegistry.updateMany({ data: { active: true } }); });
 beforeEach(async () => {
   await seedRegistry();
   await db.modelRegistry.updateMany({ data: { reliability: 50, avgLatencyMs: 0, measuredWins: 0, measuredLosses: 0, active: true } });

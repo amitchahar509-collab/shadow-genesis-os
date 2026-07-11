@@ -2,6 +2,7 @@
 
 import { test, expect, beforeEach, afterEach } from "bun:test";
 import { db } from "@/lib/db";
+import { seedRegistry } from "@/lib/genesis/agent-runtime/model-registry";
 import { capabilityFor, resolveChain, estimateCost, availableProviders, callLlmRouted, routingTable, usageSummary } from "@/lib/genesis/agent-runtime/router";
 import type { LlmOptions } from "@/lib/genesis/agent-runtime/types";
 
@@ -12,9 +13,12 @@ function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k];
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
 beforeEach(async () => {
   await db.llmUsage.deleteMany({ where: { agent: { startsWith: "ROUTERTEST" } } });
-  // dynamic routing reads MEASURED registry state — reset to neutral so ranking
-  // is deterministic (tier + tie-break only) regardless of prior test drift
-  await db.modelRegistry.updateMany({ data: { reliability: 50, avgLatencyMs: 0, measuredWins: 0, measuredLosses: 0 } });
+  // dynamic routing reads MEASURED registry state — seed + reset to neutral so ranking
+  // is deterministic regardless of suite ORDER: a prior suite's fake catalog sync may
+  // have deactivated premium rows, and seedRegistry alone never re-activates (CI caught
+  // this — Linux runs free-mode.test before this file, Windows doesn't)
+  await seedRegistry();
+  await db.modelRegistry.updateMany({ data: { reliability: 50, avgLatencyMs: 0, measuredWins: 0, measuredLosses: 0, active: true } });
 });
 
 // fake invoke seam: succeed only for models in `okModels`, else throw

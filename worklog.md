@@ -702,3 +702,19 @@ Work Log:
 Verification: tsc 0; eslint 0; 207/207 tests (was 202); next build compiles all 69 pages (standalone copy step still fails on the known Windows junction - CI/Linux unaffected; first build attempt also hit a transient fonts.gstatic.com outage, second compiled clean). LIVE run against the real db: sync -> 16 AGENT / 7 TOOL / 6 WORKFLOW plugins; refreshAll pulled real reality-table stats (acquisition 11/11, operator 2/2, createCompany 2/49); install->uninstall round-trip on the arena workflow verified (status LISTED, installCount 1 preserved). Browser-pane UI verification blocked by the known Downloads-junction doubled-path ENOENT (env debt, unchanged).
 
 Commit: cycle 30 committed on branch main.
+
+---
+Task ID: 33
+Agent: Claude Code (Fable 5) - cycle 31: CI truth restored - order-dependent registry poisoning between test suites
+
+Task: "Continue with the next gap." Audit found the highest-priority gap immediately: CI had been RED for 4 consecutive pushes (since the FREE_GENESIS_MODE db-sync commit, 2026-07-10 17:38Z) while the local suite stayed green - a silent verification gap.
+
+Work Log:
+- Audit: gh run list showed failure x4 / success before; every red run failed the SAME single test - router.test.ts "fallback chain: primary fails -> next hop succeeds" (fallbackDepth expected 1, got 0). Local full suite: 207/207 green on both the committed db AND a fresh CI-style db (DATABASE_URL=file:../db/ci-repro.db + prisma db push). So neither code nor schema - environment ordering.
+- Root cause (reproduced deterministically): bun test FILE ORDER differs between Linux and Windows. free-mode.test's last test ("dynamic free discovery") calls syncWithCatalog with a fake catalog containing only free models -> every premium openrouter row (incl. anthropic/claude-sonnet-5) is DEACTIVATED, and nothing restores them: seedRegistry deliberately never re-activates ("never clobber measured/synced state"), and router.test's beforeEach reset measured fields but NOT active flags and never seeded. On Linux free-mode runs before router -> ENGINEERING's dynamic chain loses its openrouter hop -> anthropic-direct sonnet becomes hop 0 -> depth 0. On Windows the order differs -> invisible locally for 4 cycles. Repro: fresh db + `bun test free-mode.test.ts router.test.ts` failed exactly like CI.
+- Fix (both sides, test-only): (1) router.test beforeEach now seeds + resets WITH active:true - self-sufficient under any order; (2) free-mode.test afterAll restores the registry (seedRegistry + activate all) so the fake-sync mutation cannot poison downstream suites; (3) model-brain.test got the same afterAll (its catalog-sync test also deactivates rows; only intra-file luck restored them).
+- Lesson recorded: "CI green" must be CHECKED after every push, not assumed - the watch step existed but its failure went unnoticed during cycles 27-29 (the runs were red while worklog entries claimed green CI).
+
+Verification: tsc 0; eslint 0; 207/207 on the committed db AND on a fresh db AND in the exact Linux failure order (free-mode -> router: 18/18, previously failed). CI watched to completion after push.
+
+Commit: cycle 31 committed on branch main.
