@@ -7,6 +7,7 @@ import { getMemoryEngine } from "./memory/engine";
 import { invokeTool } from "./tools";
 import type { ToolContext, ToolOutput } from "./tools/index";
 import { emit, events } from "./event-bus";
+import { recordOutcome } from "./improvement/prompts";
 
 export interface AgentRunInput {
   goal: string;
@@ -33,9 +34,26 @@ export abstract class BaseAgent {
   readonly description: string = "";
   protected sandboxRoot = "";
   protected executionId = "";
+  /** Test seam forwarded to callLlmRouted's _invoke (never set in production). */
+  protected llmInvokeSeam?: unknown;
+  private evolvedPrompt: { id: string; version: number; systemPrompt: string } | null | undefined;
+  private evolvedPromptConsumed = false;
   protected abstract run(input: AgentRunInput, ctx: AgentRunContext): Promise<{ summary: string; artifacts: { type: string; path: string; description: string; size: number }[]; output: Record<string, unknown>; }>;
 
+  /** The agent's ACTIVE evolved PromptVersion, if a lineage exists. Deliberately no
+   *  auto-seeding: merely running an agent must not create a skill lineage —
+   *  evolution (or a human via the prompts API) does that. */
+  private async activeEvolvedPrompt(): Promise<{ id: string; version: number; systemPrompt: string } | null> {
+    if (this.evolvedPrompt === undefined) {
+      const row = await db.promptVersion.findFirst({ where: { agent: this.name.toUpperCase(), active: true } });
+      this.evolvedPrompt = row ? { id: row.id, version: row.version, systemPrompt: row.systemPrompt } : null;
+    }
+    return this.evolvedPrompt;
+  }
+
   async execute(input: AgentRunInput): Promise<AgentRunResult> {
+    this.evolvedPrompt = undefined; // re-resolve per execution (the active version can change)
+    this.evolvedPromptConsumed = false;
     this.executionId = await allocateExecution({ agent: this.name, taskId: input.taskId ?? null, projectId: input.projectId ?? null, goal: input.goal, parentExecutionId: input.parentExecutionId ?? null });
     const sandbox = path.resolve(process.cwd(), ".genesis-workspace", this.name.toLowerCase(), this.executionId);
     await fs.mkdir(sandbox, { recursive: true });
@@ -76,7 +94,14 @@ export abstract class BaseAgent {
         // Route through the multi-provider router — the agent's name selects the
         // capability (reasoning/coding/long-context/cheap) + fallback chain.
         const { callLlmRouted } = await import("./router");
-        const r = await callLlmRouted({ system, user, temperature: opts?.temperature, maxTokens: opts?.maxTokens, timeoutMs: opts?.timeoutMs ?? 8_000 }, { agent: this.name, executionId: this.executionId });
+        // Evolution's product applies at RUNTIME: the active PromptVersion rides along
+        // as labeled guidance (appended — the per-call task prompt stays authoritative).
+        const evolved = await this.activeEvolvedPrompt();
+        const sys = evolved ? `${system}\n\n[EVOLVED PROMPT v${evolved.version} — guidance learned from real outcomes]\n${evolved.systemPrompt}` : system;
+        const r = await callLlmRouted({ system: sys, user, temperature: opts?.temperature, maxTokens: opts?.maxTokens, timeoutMs: opts?.timeoutMs ?? 8_000 }, { agent: this.name, executionId: this.executionId, ...(this.llmInvokeSeam ? { _invoke: this.llmInvokeSeam as never } : {}) });
+        // only attribute the outcome to the prompt if a model actually consumed it —
+        // transport-level failures (no provider, all hops down) say nothing about it
+        if (evolved && r.ok) this.evolvedPromptConsumed = true;
         if (r.tokensUsed) tokensUsed += r.tokensUsed;
         return r;
       },
@@ -98,6 +123,8 @@ export abstract class BaseAgent {
       }
 
       await db.agentExecution.update({ where: { executionId: this.executionId }, data: { status: "SUCCESS", completedAt: new Date(), durationMs, toolCalls, artifactsCreated, retryCount: retries, tokensUsed, result: JSON.stringify({ summary: result.summary, output: result.output }) } });
+      // close the evolution loop: attribute this REAL outcome to the prompt version that steered the run
+      if (this.evolvedPromptConsumed) { const ep = await this.activeEvolvedPrompt(); if (ep) await recordOutcome(ep.id, true).catch(() => {}); }
       await ctx.recordMemory({ type: "EPISODIC", title: `${this.name} run succeeded: ${truncate(result.summary, 80)}`, content: `Goal: ${input.goal}\nResult: ${result.summary}\nDuration: ${durationMs}ms\nTools: ${toolCalls}\nArtifacts: ${artifactsCreated}`, tags: [this.name.toLowerCase(), "execution", "success"], importance: 7 });
       await ctx.emit({ action: "SUCCESS", detail: truncate(result.summary, 160), level: "SUCCESS" });
 
@@ -109,6 +136,7 @@ export abstract class BaseAgent {
       const durationMs = Date.now() - start;
       const errorMessage = e instanceof Error ? e.message : String(e);
       await db.agentExecution.update({ where: { executionId: this.executionId }, data: { status: "FAILED", completedAt: new Date(), durationMs, toolCalls, retryCount: retries, tokensUsed, error: errorMessage, result: JSON.stringify({ error: errorMessage }) } });
+      if (this.evolvedPromptConsumed) { const ep = await this.activeEvolvedPrompt(); if (ep) await recordOutcome(ep.id, false).catch(() => {}); }
       await ctx.recordMemory({ type: "EPISODIC", title: `${this.name} run FAILED: ${truncate(errorMessage, 80)}`, content: `Goal: ${input.goal}\nError: ${errorMessage}\nDuration: ${durationMs}ms`, tags: [this.name.toLowerCase(), "execution", "failure", "error"], importance: 9 });
       await emit(events.error(this.name, `FAILED: ${truncate(errorMessage, 160)}`));
       return { executionId: this.executionId, status: "FAILED", summary: errorMessage, artifacts: [], metrics: { toolCalls, durationMs, tokensUsed, retries }, output: {}, error: errorMessage };

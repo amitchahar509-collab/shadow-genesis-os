@@ -718,3 +718,19 @@ Work Log:
 Verification: tsc 0; eslint 0; 207/207 on the committed db AND on a fresh db AND in the exact Linux failure order (free-mode -> router: 18/18, previously failed). CI watched to completion after push.
 
 Commit: cycle 31 committed on branch main.
+
+---
+Task ID: 34
+Agent: Claude Code (Fable 5) - cycle 32: evolution loop CLOSED at runtime - evolved prompts steer real calls, real outcomes feed skills
+
+Task: "Continue with the next gap." Audit found that the entire G7 self-improvement product was DECORATIVE at runtime: getActivePrompt had no consumer outside evolution itself; recordOutcome was reachable only via a manual API POST. Evolved prompt guards steered nothing, prompt rollbacks changed nothing, and SKILL plugin stats (cycle 30) could never move from real executions.
+
+Work Log:
+- Audit trail: grep showed getActivePrompt used only by evolution/index.ts (to WRITE new versions) and recordOutcome only by the prompts API route. BaseAgent.execute -> ctx.llm passed each agent's hardcoded per-call system prompt straight to callLlmRouted; completion paths recorded nothing onto PromptVersion.
+- BaseAgent (additive): (1) activeEvolvedPrompt() - resolves the agent's ACTIVE PromptVersion once per execution, cached; deliberately findFirst, NOT getActivePrompt - merely running an agent must not auto-seed a skill lineage (evolution or the prompts API does that). (2) ctx.llm appends the active version as "[EVOLVED PROMPT vN - guidance learned from real outcomes]" - APPENDED, because per-call task prompts (Architect doc spec, repair loop, growth JSON format) stay authoritative. (3) Honest attribution: evolvedPromptConsumed only set when a call returns ok - transport failures (no provider, every hop down) say nothing about prompt quality. (4) On SUCCESS/FAILED, recordOutcome(activeVersion, ...) - execution-level attribution, same unit evolution decides on. (5) llmInvokeSeam protected field lets tests inject callLlmRouted's _invoke.
+- Tests (evolved-prompt-runtime.test.ts, 6): injection labeled + appended with task prompt first; SUCCESS -> successCount; run-failure-after-consumption -> failCount; transport-level all-hops-dead -> NOTHING recorded; no lineage -> system byte-identical + zero auto-seeded rows; two runs under v1 then v2 -> each version keeps its own tally (lineage integrity). Fix during dev: throwing seam used HTTP_500 which is TRANSIENT -> 4s retry backoff x hops blew the 5s test timeout (and the timed-out run tripped a P2025 in the next test's wipe); switched to non-transient HTTP_400.
+- TS gotcha: `this.evolvedPrompt = undefined` at execute() start narrowed the property for the whole method (reassignment hidden inside the helper) -> `never` on `.id`; completion paths now re-read via the caching helper.
+
+Verification: tsc 0; eslint 0; 213/213 (was 207) on the committed db AND a fresh CI-style db. LIVE (real model, $0): created a real GROWTH skill lineage (v1 honest-growth guidance via setPrompt), ran the real GROWTH agent -> EX-000027 SUCCESS on gemini/gemini-flash-lite-latest (511 real tokens, $0, 19.3s incl. free-tier fallback walk); v1 success 0->1 from the RUN ITSELF (no manual POST); marketplace sync then listed the first real SKILL - PLG-000032 GROWTH, runs=1 perf=100 trust=22 (volume-damped, honestly unproven).
+
+Commit: cycle 32 committed on branch main.
