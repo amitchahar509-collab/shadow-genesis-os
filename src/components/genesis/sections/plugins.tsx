@@ -10,7 +10,7 @@ import { Chip, GenesisProgress, HudPanel } from "../primitives";
 
 interface Plugin { pluginId: string; kind: string; refKey: string; name: string; version: number; source: string; status: string; installCount: number; invocations: number; performanceScore: number; benchmarkScore: number; trustScore: number }
 
-const kindChip = (k: string): "violet" | "cyan" | "amber" => (k === "AGENT" ? "violet" : k === "TOOL" ? "cyan" : "amber");
+const kindChip = (k: string): "violet" | "cyan" | "amber" | "rose" => (k === "AGENT" ? "violet" : k === "TOOL" ? "cyan" : k === "SKILL" ? "rose" : "amber");
 const sourceChip = (s: string): "emerald" | "violet" | "zinc" => (s === "BUILTIN" ? "emerald" : s === "EVOLUTION" ? "violet" : "zinc");
 
 export function Plugins() {
@@ -28,10 +28,16 @@ export function Plugins() {
     finally { setBusy(false); }
   };
 
+  const act = async (action: "install" | "uninstall" | "benchmark", pluginId: string) => {
+    setBusy(true);
+    try { await fetch("/api/genesis/plugins", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, pluginId }) }); await load(); }
+    finally { setBusy(false); }
+  };
+
   return (
     <HudPanel
       title="Plugin / Skill Marketplace"
-      subtitle="installable agents · tools · workflows — trust & performance from REAL usage"
+      subtitle="installable agents · tools · workflows · skills — trust & performance from REAL usage"
       icon={<Package className="w-3.5 h-3.5" />}
       accent="violet"
       right={
@@ -46,7 +52,7 @@ export function Plugins() {
             <thead>
               <tr className="text-zinc-500 uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">plugin</th><th className="pr-3">kind</th><th className="pr-3">source</th><th className="pr-3">v</th>
-                <th className="pr-3">runs</th><th className="pr-3">perf</th><th className="pr-3 w-28">trust</th><th>installs</th>
+                <th className="pr-3">runs</th><th className="pr-3">perf</th><th className="pr-3 w-28">trust</th><th className="pr-3">installs</th><th>actions</th>
               </tr>
             </thead>
             <tbody>
@@ -59,7 +65,15 @@ export function Plugins() {
                   <td className="pr-3">{p.invocations}</td>
                   <td className="pr-3">{p.performanceScore}</td>
                   <td className="pr-3"><div className="flex items-center gap-1"><GenesisProgress value={p.trustScore} accent="violet" /><span className="w-6 text-right">{p.trustScore}</span></div></td>
-                  <td>{p.status === "INSTALLED" ? <Chip variant="emerald">×{p.installCount}</Chip> : p.installCount}</td>
+                  <td className="pr-3">{p.status === "INSTALLED" ? <Chip variant="emerald">×{p.installCount}</Chip> : p.status === "DEPRECATED" ? <Chip variant="rose">DEPR</Chip> : p.installCount}</td>
+                  <td>
+                    <div className="flex items-center gap-1.5">
+                      {p.status === "INSTALLED"
+                        ? <button onClick={() => act("uninstall", p.pluginId)} disabled={busy} className="px-1.5 py-0.5 rounded border border-zinc-600/40 text-zinc-400 hover:bg-zinc-500/10 disabled:opacity-50 uppercase">remove</button>
+                        : p.status !== "DEPRECATED" && <button onClick={() => act("install", p.pluginId)} disabled={busy} className="px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50 uppercase">install</button>}
+                      <button onClick={() => act("benchmark", p.pluginId)} disabled={busy} className="px-1.5 py-0.5 rounded border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-50 uppercase">bench</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

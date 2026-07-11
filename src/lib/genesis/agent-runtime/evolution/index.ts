@@ -24,6 +24,7 @@ import { computeAgentMetrics } from "../observability/metrics";
 import { getActivePrompt, setPrompt, rollback, listVersions } from "../improvement/prompts";
 import { canUseTool } from "../tools";
 import { emit } from "../event-bus";
+import { publishPlugin } from "../plugins";
 
 const MIN_SAMPLES = 3;
 const HEALTHY = 0.8;         // ≥ → healthy, no action
@@ -97,7 +98,9 @@ export async function evolveAgent(agent: string, opts?: { windowHours?: number; 
         create: { key, name: `${A} ${top.category} specialist`, description: `Specialist proposed by evolution to handle recurring ${top.category} failures in ${A}. ${top.recommendation}`, systemPrompt: `You are a ${A} specialist for ${top.category} problems. Focus exclusively on: ${top.recommendation}. Verify each step; fail loudly rather than silently.`, toolAllowlist: JSON.stringify(baseTools.length ? baseTools : ["filesystem", "memory"]), isBuiltin: false },
         update: { description: `Updated by evolution: ${top.category} recurred ${top.occurrences}×. ${top.recommendation}` },
       });
-      detail = `template ${key}`;
+      // auto-list the new specialist on the marketplace (idempotent; trust starts unproven)
+      const listed = await publishPlugin({ kind: "AGENT", refKey: key, name: `${A} ${top.category} specialist`, source: "EVOLUTION", description: `Evolution-proposed specialist for recurring ${top.category} failures in ${A}` });
+      detail = `template ${key}${"pluginId" in listed ? ` (listed as ${listed.pluginId})` : ""}`;
     } else detail = `dry-run: would propose template ${A}_${top.category}_SPECIALIST`;
   } else if (top) {
     kind = "IMPROVE_PROMPT";

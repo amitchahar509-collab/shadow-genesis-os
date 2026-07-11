@@ -20,10 +20,10 @@ import { listTools } from "../tools";
 import { computeAgentMetrics } from "../observability/metrics";
 import { emit } from "../event-bus";
 
-export type PluginKind = "AGENT" | "TOOL" | "WORKFLOW";
+export type PluginKind = "AGENT" | "TOOL" | "WORKFLOW" | "SKILL";
 export type PluginSource = "BUILTIN" | "EVOLUTION" | "USER";
 
-const KNOWN_WORKFLOWS = ["createCompany", "arena", "acquisition", "operator", "world-scan", "demand"];
+export const KNOWN_WORKFLOWS = ["createCompany", "arena", "acquisition", "operator", "world-scan", "demand"];
 const SOURCE_BASELINE: Record<PluginSource, number> = { BUILTIN: 65, EVOLUTION: 50, USER: 40 };
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Math.round(n)));
 
@@ -31,6 +31,8 @@ const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Math.ro
 export async function artifactExists(kind: PluginKind, refKey: string): Promise<boolean> {
   if (kind === "AGENT") return AGENT_NAMES.includes(refKey.toUpperCase()) || !!(await db.agentTemplate.findUnique({ where: { key: refKey } }));
   if (kind === "TOOL") return listTools().some((t) => t.name === refKey) || !!(await db.customTool.findUnique({ where: { key: refKey } }));
+  // SKILL = an agent's versioned system prompt (PromptVersion rows carry real outcome counts)
+  if (kind === "SKILL") return (await db.promptVersion.count({ where: { agent: refKey.toUpperCase() } })) > 0;
   return KNOWN_WORKFLOWS.includes(refKey);
 }
 
@@ -67,8 +69,45 @@ export async function syncFromRegistry(): Promise<{ published: number }> {
   for (const tool of listTools()) { const r = await publishPlugin({ kind: "TOOL", refKey: tool.name, source: "BUILTIN", description: tool.description.slice(0, 200) }); if ("pluginId" in r) published++; }
   for (const t of await db.agentTemplate.findMany({ where: { isBuiltin: false } })) { const r = await publishPlugin({ kind: "AGENT", refKey: t.key, name: t.name, source: "EVOLUTION", description: t.description.slice(0, 200) }); if ("pluginId" in r) published++; }
   for (const t of await db.customTool.findMany({ where: { isBuiltin: false } })) { const r = await publishPlugin({ kind: "TOOL", refKey: t.key, name: t.name, source: "USER", description: t.description.slice(0, 200) }); if ("pluginId" in r) published++; }
+  for (const wf of KNOWN_WORKFLOWS) { const r = await publishPlugin({ kind: "WORKFLOW", refKey: wf, source: "BUILTIN", description: `Built-in ${wf} workflow` }); if ("pluginId" in r) published++; }
+  // SKILL plugins: one per agent that has real versioned prompts (the skill IS the prompt lineage)
+  const skillAgents = await db.promptVersion.groupBy({ by: ["agent"] });
+  for (const s of skillAgents) { const r = await publishPlugin({ kind: "SKILL", refKey: s.agent, name: `${s.agent} skill`, source: "EVOLUTION", description: `Versioned system prompt for ${s.agent} (evolves from real outcomes)` }); if ("pluginId" in r) published++; }
   await emit({ agent: "MARKETPLACE", action: "PLUGIN_SYNC", detail: `synced ${published} new plugin(s) from real artifacts`, level: "INFO", category: "SYSTEM" });
   return { published };
+}
+
+/** Real per-workflow outcomes from each workflow's own reality table. Some
+ *  workflows have no failure state in their rows (every run records a valid
+ *  outcome) — their perf honestly reflects that rather than inventing failures. */
+async function workflowStats(refKey: string): Promise<{ invocations: number; successes: number }> {
+  switch (refKey) {
+    case "createCompany": {
+      const rows = await db.ventureRun.findMany({ select: { status: true } });
+      return { invocations: rows.length, successes: rows.filter((r) => r.status !== "FAILED").length };
+    }
+    case "arena": {
+      const rows = await db.arenaCompetition.findMany({ select: { status: true } });
+      return { invocations: rows.length, successes: rows.filter((r) => r.status === "JUDGED").length };
+    }
+    case "acquisition": {
+      const rows = await db.growthExperiment.findMany({ where: { experimentId: { not: null } }, select: { status: true, learning: true } });
+      return { invocations: rows.length, successes: rows.filter((r) => r.learning !== null || r.status.startsWith("AWAITING")).length };
+    }
+    case "operator": {
+      const n = await db.longMission.count();
+      return { invocations: n, successes: n }; // missions have no crash state; KILLED/COMPLETED are both valid outcomes
+    }
+    case "world-scan": {
+      const n = await db.worldProblem.count();
+      return { invocations: n, successes: n };
+    }
+    case "demand": {
+      const n = await db.demandMatch.count();
+      return { invocations: n, successes: n };
+    }
+    default: return { invocations: 0, successes: 0 };
+  }
 }
 
 /** Read REAL usage for the wrapped artifact and recompute performance + trust. */
@@ -82,6 +121,13 @@ export async function refreshStats(pluginId: string): Promise<void> {
   } else if (p.kind === "TOOL") {
     const calls = await db.toolCall.findMany({ where: { tool: p.refKey }, select: { status: true } });
     invocations = calls.length; successes = calls.filter((c) => c.status === "SUCCESS").length; failures = calls.filter((c) => c.status === "ERROR" || c.status === "FAILED").length;
+  } else if (p.kind === "SKILL") {
+    // a skill's performance = the ACTIVE prompt version's real recorded outcomes
+    const v = await db.promptVersion.findFirst({ where: { agent: p.refKey.toUpperCase(), active: true } });
+    successes = v?.successCount ?? 0; failures = v?.failCount ?? 0; invocations = successes + failures;
+  } else if (p.kind === "WORKFLOW") {
+    const w = await workflowStats(p.refKey);
+    invocations = w.invocations; successes = w.successes; failures = invocations - successes;
   }
   const performanceScore = invocations > 0 ? clamp((successes / invocations) * 100) : 0;
   const trustScore = computeTrust(p.source as PluginSource, performanceScore, invocations, p.benchmarkScore);
@@ -107,6 +153,26 @@ export async function installPlugin(pluginId: string): Promise<{ ok: boolean; in
   const updated = await db.plugin.update({ where: { pluginId }, data: { status: "INSTALLED", installCount: p.installCount + 1 } });
   await emit({ agent: "MARKETPLACE", action: "PLUGIN_INSTALL", detail: `${pluginId} installed (${updated.installCount})`, level: "SUCCESS", category: "SYSTEM" });
   return { ok: true, installCount: updated.installCount };
+}
+
+/** Uninstall: back to LISTED. The wrapped artifact keeps existing; only the install state changes. */
+export async function uninstallPlugin(pluginId: string): Promise<{ ok: boolean; error?: string }> {
+  const p = await db.plugin.findUnique({ where: { pluginId } });
+  if (!p) return { ok: false, error: "not found" };
+  if (p.status !== "INSTALLED") return { ok: false, error: `not installed (status: ${p.status})` };
+  await db.plugin.update({ where: { pluginId }, data: { status: "LISTED" } });
+  await emit({ agent: "MARKETPLACE", action: "PLUGIN_UNINSTALL", detail: `${pluginId} uninstalled (back to LISTED)`, level: "INFO", category: "SYSTEM" });
+  return { ok: true };
+}
+
+/** Deprecate: keeps the row + its real history, but blocks future installs. */
+export async function deprecatePlugin(pluginId: string, reason?: string): Promise<{ ok: boolean; error?: string }> {
+  const p = await db.plugin.findUnique({ where: { pluginId } });
+  if (!p) return { ok: false, error: "not found" };
+  if (p.status === "DEPRECATED") return { ok: true }; // idempotent
+  await db.plugin.update({ where: { pluginId }, data: { status: "DEPRECATED" } });
+  await emit({ agent: "MARKETPLACE", action: "PLUGIN_DEPRECATE", detail: `${pluginId} deprecated${reason ? `: ${reason}` : ""}`, level: "WARNING", category: "SYSTEM" });
+  return { ok: true };
 }
 
 /** Publish a new version of a plugin (versioning). */

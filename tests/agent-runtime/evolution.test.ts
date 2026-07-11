@@ -1,6 +1,6 @@
 /** V8 G7 — Agent Evolution tests: data-driven decisions, real prompt/template side effects, honesty. */
 
-import { test, expect, beforeEach } from "bun:test";
+import { test, expect, beforeEach, afterAll } from "bun:test";
 import { db } from "@/lib/db";
 import { evolveAgent, evolveAll, evaluateAgent } from "@/lib/genesis/agent-runtime/evolution";
 import { setPrompt, getActivePrompt, listVersions } from "@/lib/genesis/agent-runtime/improvement/prompts";
@@ -21,10 +21,12 @@ async function wipe(agent: string) {
   await db.promptVersion.deleteMany({ where: { agent } });
   await db.agentTemplate.deleteMany({ where: { key: { startsWith: agent } } });
   await db.agentMetric.deleteMany({ where: { agent } });
+  await db.plugin.deleteMany({ where: { refKey: { startsWith: agent } } }); // auto-published specialists
 }
 
 const AGENTS = ["EVOTESTNONE", "EVOTESTHEALTHY", "EVOTESTRETIRE", "EVOTESTIMPROVE", "EVOTESTSPEC"];
 beforeEach(async () => { for (const a of AGENTS) await wipe(a); });
+afterAll(async () => { for (const a of AGENTS) await wipe(a); }); // committed db — no residue
 
 test("insufficient data → NO_ACTION, nothing applied", async () => {
   await seedExecutions("EVOTESTNONE", ["FAILED"]); // 1 run < MIN_SAMPLES
@@ -75,6 +77,11 @@ test("persistent recurring failure → CREATE_SPECIALIST proposes a template", a
   expect(tmpl).not.toBeNull();
   expect(tmpl!.isBuiltin).toBe(false); // a proposed spec, not a live builtin agent
   expect(r.reason).toContain("not a live agent");
+  // G11: the specialist is auto-listed on the marketplace as an EVOLUTION plugin
+  const listed = await db.plugin.findUnique({ where: { kind_refKey: { kind: "AGENT", refKey: "EVOTESTSPEC_TIMEOUT_SPECIALIST" } } });
+  expect(listed).not.toBeNull();
+  expect(listed!.source).toBe("EVOLUTION");
+  expect(r.detail).toContain(listed!.pluginId);
 });
 
 test("dry-run (apply:false) records the decision but changes nothing", async () => {

@@ -681,3 +681,24 @@ Work Log:
 Verification: tsc 0; eslint 0; 202/202 tests; next build compiles. LIVE artifacts: BOARD-001118 BOARD_DECISION.md (8 LLM seats, per-seat model recorded), LlmUsage rows ($0, real tokens), registry reliability drift from real calls.
 
 Commit: cycle 29 committed on branch main.
+
+---
+Task ID: 32
+Agent: Claude Code (Fable 5) - cycle 30: G11 extension - SKILL kind, workflow reality stats, lifecycle, evolution auto-listing
+
+Task: Continue G11 Plugin/Skill Marketplace - extend (never rebuild) the cycle-22 marketplace with its missing pieces: the SKILL kind the name promised, real performance for WORKFLOW plugins, uninstall/deprecate lifecycle, and auto-listing of evolution-created specialists.
+
+Work Log:
+- Audit: marketplace covered AGENT/TOOL/WORKFLOW but (a) no SKILL kind despite "Plugin/Skill" in the name; (b) WORKFLOW plugins had NO stats source (perf permanently 0); (c) no uninstall/deprecate; (d) evolution CREATE_SPECIALIST upserted its AgentTemplate but never listed it.
+- SKILL kind (additive): a skill = an agent's versioned system prompt. artifactExists requires real PromptVersion lineage; refreshStats reads the ACTIVE version's real successCount/failCount (v1 history stays history - current skill perf is the current prompt's outcomes). syncFromRegistry lists one SKILL per agent with prompt versions (source EVOLUTION).
+- WORKFLOW reality stats: each of the 6 known workflows maps to its own reality table - createCompany->VentureRun (success = not FAILED; HALTED_NO_GO is a VALID outcome - honestly declining is the pipeline working), arena->ArenaCompetition (JUDGED), acquisition->GrowthExperiment (learned or awaiting), operator/world-scan/demand -> row counts (their rows have no crash state; documented in-code rather than inventing failures). Live numbers are honest and ugly: createCompany 49 real runs, only 2 non-FAILED -> perf 4/100, trust 28 (early-cycle crashes on record; the marketplace now shows it).
+- Lifecycle: uninstallPlugin (INSTALLED->LISTED; refuses if not installed; installCount history preserved - the installs really happened) + deprecatePlugin (blocks installs, keeps history, idempotent). installPlugin already refused DEPRECATED.
+- Evolution hook: CREATE_SPECIALIST apply branch now auto-publishes the new template as an EVOLUTION plugin (idempotent; trust starts unproven at ~20 until real executions accumulate); actionId detail records the pluginId.
+- API: POST actions uninstall|deprecate added; route upgraded from bare guard+audit to guardWrite (G10 parity: usage metering + audit). GET kind filter documents SKILL.
+- Dashboard: SKILL chip (rose), DEPR badge, per-row actions - install/remove/bench wired to the real API.
+- Test-residue bug found by live run: suites wiped only in beforeEach, so the LAST test's rows persisted into the COMMITTED SQLite (a PLGTEST skill listed in the real marketplace). Added afterAll(wipe) to plugins + evolution suites and purged existing PLGTEST/EVOTEST rows from the db. Post-suite residue check: 0/0/0.
+- Tests +5 (plugins: SKILL lineage/active-version stats, WORKFLOW mirrors VentureRun + refuses unknown flows, uninstall, deprecate, sync lists workflows+skills) and evolution's specialist test now asserts the marketplace listing.
+
+Verification: tsc 0; eslint 0; 207/207 tests (was 202); next build compiles all 69 pages (standalone copy step still fails on the known Windows junction - CI/Linux unaffected; first build attempt also hit a transient fonts.gstatic.com outage, second compiled clean). LIVE run against the real db: sync -> 16 AGENT / 7 TOOL / 6 WORKFLOW plugins; refreshAll pulled real reality-table stats (acquisition 11/11, operator 2/2, createCompany 2/49); install->uninstall round-trip on the arena workflow verified (status LISTED, installCount 1 preserved). Browser-pane UI verification blocked by the known Downloads-junction doubled-path ENOENT (env debt, unchanged).
+
+Commit: cycle 30 committed on branch main.
