@@ -231,14 +231,23 @@ model DeploymentRecord {
   executionId   String?
   taskId        String?
   projectId     String?
-  target        String // local | vercel | netlify | custom
+  target        String // local | vercel | netlify | custom | cloudflare | railway | render | docker
   url           String?
   buildCmd      String
   envValidation String   @default("{}")
-  status        String   @default("PENDING") // PENDING | BUILDING | VALIDATING | DEPLOYED | FAILED | UNHEALTHY
+  status        String   @default("PENDING") // PENDING | PLANNED | AWAITING_APPROVAL | BUILDING | VALIDATING | DEPLOYED | FAILED | UNHEALTHY | ROLLED_BACK
   health        String   @default("UNKNOWN") // UNKNOWN | HEALTHY | UNHEALTHY | NOT_RUNNING
   log           String   @default("")
   createdAt     DateTime @default(now())
+  // V10 Module 4 — Deployment Cloud (additive; legacy local rows keep defaults)
+  deploymentId  String?  @unique // DEP-000001
+  provider      String   @default("local") // local | vercel | cloudflare | railway | render | docker
+  approvalId    String? // APR- id — cloud deploys are approval-gated (outward-facing)
+  commitSha     String?
+  region        String?
+  healthCheckedAt DateTime?
+  rolledBackFrom  String? // deploymentId this record superseded on rollback
+  configPath    String? // generated deploy config (vercel.json / Dockerfile / render.yaml)
 }
 
 // ============ AGENT COLLABORATION (V3 Phase 1) ============

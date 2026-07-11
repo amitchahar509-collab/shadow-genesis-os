@@ -871,3 +871,21 @@ Work Log:
 Verification: tsc 0; eslint 0; 260/260 (was 251) on committed AND fresh CI-style db. LIVE on the real db: providers all no-key -> ZERO-STATE hasRealRevenue=false, MRR/ARR/LTV/CAC all UNKNOWN, net $0 (honest); then 2 manual REAL subs ($29/mo + $99/yr) + $120 spend -> MRR $37.25 (=$29 + $99/12, year correctly normalized), ARR $447, ARPU $18.63, CAC $60 - all labeled REAL; then PURGED (verification events are not earned revenue) -> back to hasRealRevenue=false, committed db carries 0 revenue rows.
 
 Commit: cycle 40 committed on branch main.
+
+---
+Task ID: 43
+Agent: Claude Code (Fable 5) - cycle 41: V10 Module 4 - Deployment Cloud (key-gated providers, approval-gated deploys, real health + rollback)
+
+Task: V10 Module 4 - Vercel/Cloudflare/Railway/Render/Docker/GitHub/Supabase/Neon; one-click deploy; health monitoring; rollback. Never fabricate a deploy; deploys are outward-facing -> human-approval gated.
+
+Phase 0 audit (reuse, no rebuild): the local DeploymentAgent (core.ts) already does build/start/health/rollback for target=local - left completely untouched. DeploymentRecord extended additively (deploymentId/provider/approvalId/commitSha/region/healthCheckedAt/rolledBackFrom/configPath + new statuses PLANNED|AWAITING_APPROVAL|ROLLED_BACK). Reused approvals engine + Module-1 fetch seam.
+
+Work Log:
+- cloud-providers.ts: 8 KEY-GATED connectors. verify() is a REAL read-only API call - Vercel /v2/user, Cloudflare /user/tokens/verify, Railway GraphQL me, Render /v1/services, GitHub /user, Supabase /v1/projects, Neon /v2/projects; Docker is a local CLI (no key, verified at deploy time). available() = real key present; no key -> honestly unconfigured, never mocked. Kinds: DEPLOY_HOST | DATABASE | REGISTRY | VCS.
+- deployment-cloud/index.ts: verifyProvider/verifyAllProviders (real, network-locked under tests); generateDeployConfig (writes REAL vercel.json/render.yaml/railway.json/wrangler.toml/Dockerfile); planDeployment (generates config + creates DeploymentRecord AWAITING_APPROVAL + queues a real ApprovalRequest - NOTHING deploys here, deploys are outward-facing); decideDeployment (human approve->PLANNED / reject->FAILED); markDeployed (records a human/CI-performed go-live with the real URL, then health-checks - Genesis never claims a deploy it didn't verify); checkHealth (REAL HTTP GET, any <500 = HEALTHY, throw = NOT_RUNNING); rollback (re-activates the prior DEPLOYED record for the same project/provider). deploymentOverview + provider health.
+- API: new /api/genesis/deploy (GET overview + ?verify=all/<provider>; POST plan|decide|deployed|health|rollback, guardWrite) - the legacy /api/genesis/deployments GET is preserved untouched. Dashboard DeploymentCloud panel (provider connection chips, deployment table w/ status+health chips + live URLs) wired into Venture Intelligence.
+- Tests (deployment-cloud.test.ts, 10): verify key-gated (no key -> unconfigured, no net); connected verify makes a real read-only call + reports account; generateDeployConfig writes real Dockerfile+vercel.json; planDeployment is approval-gated (AWAITING_APPROVAL, markDeployed refused pre-approval); plan refuses unconfigured provider; approve->deploy->REAL health HEALTHY; rejected can't deploy; down server -> NOT_RUNNING; rollback re-activates prior healthy deploy; test-env network lockout.
+
+Verification: tsc 0; eslint 0; 270/270 (was 260) on committed AND fresh CI-style db. LIVE on the real db: provider zero-state honest (all no-key except docker=verified local CLI); planned deploy -> AWAITING_APPROVAL + real APR-000001; approved -> markDeployed ran a REAL HTTP health check against a live host -> HEALTHY; second deploy + rollback re-activated the prior; then PURGED all verification records (0 deployment rows left - never leave fake deploys in the committed db).
+
+Commit: cycle 41 committed on branch main.

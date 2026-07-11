@@ -17,6 +17,7 @@ import { ProviderStatus } from "./provider-status";
 import { Plugins } from "./plugins";
 import { Acquisition } from "./acquisition";
 import { Revenue } from "./revenue";
+import { DeploymentCloud } from "./deployment-cloud";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -206,6 +207,9 @@ export function VentureIntelligence() {
 
       {/* ===== Revenue execution (V10 Module 3) ===== */}
       <Revenue />
+
+      {/* ===== Deployment cloud (V10 Module 4) ===== */}
+      <DeploymentCloud />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />
