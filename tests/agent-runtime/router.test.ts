@@ -1,6 +1,6 @@
 /** Multi-provider router tests: per-agent routing, provider filtering, fallback chain, cost, usage — network-free. */
 
-import { test, expect, beforeEach, afterEach } from "bun:test";
+import { test, expect, beforeEach, afterEach, afterAll } from "bun:test";
 import { db } from "@/lib/db";
 import { seedRegistry } from "@/lib/genesis/agent-runtime/model-registry";
 import { capabilityFor, resolveChain, estimateCost, availableProviders, callLlmRouted, routingTable, usageSummary } from "@/lib/genesis/agent-runtime/router";
@@ -11,6 +11,7 @@ const saved: Record<string, string | undefined> = {};
 for (const k of KEYS) saved[k] = process.env[k];
 function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k]; for (const k of on) process.env[k] = "sk-test"; process.env.PREMIUM_MODE = "true"; /* these suites assert PREMIUM ranking */ }
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
+afterAll(async () => { await db.llmUsage.deleteMany({ where: { agent: { startsWith: "ROUTERTEST" } } }); }); // no fake spend residue
 beforeEach(async () => {
   await db.llmUsage.deleteMany({ where: { agent: { startsWith: "ROUTERTEST" } } });
   // dynamic routing reads MEASURED registry state — seed + reset to neutral so ranking
@@ -98,11 +99,13 @@ test("fallback chain: primary fails → next hop succeeds (fallbackDepth > 0)", 
   setKeys("ANTHROPIC_API_KEY", "OPENROUTER_API_KEY");
   // CODING chain: [openrouter anthropic/claude-sonnet-5, anthropic claude-sonnet-5, …].
   // Fail the openrouter primary; succeed the direct-anthropic 2nd hop.
-  const r = await callLlmRouted({ system: "s", user: "u" }, { agent: "ENGINEERING", _invoke: fakeInvoke(["claude-sonnet-5"]) as never });
+  const r = await callLlmRouted({ system: "s", user: "u" }, { agent: "ENGINEERING", executionId: "ROUTERTEST-fb", _invoke: fakeInvoke(["claude-sonnet-5"]) as never });
   expect(r.ok).toBe(true);
   expect(r.provider).toBe("anthropic");
   expect(r.model).toBe("claude-sonnet-5");
   expect(r.fallbackDepth).toBe(1); // used the 2nd hop
+  // fake tokens must not pollute the REAL spend ledger (the budget guard reads it)
+  await db.llmUsage.deleteMany({ where: { agent: "ENGINEERING", executionId: "ROUTERTEST-fb" } });
 });
 
 test("whole chain fails → error records a failed usage row (0 tokens)", async () => {

@@ -15,7 +15,7 @@ function setKeys(...on: string[]) { for (const k of KEYS) delete process.env[k];
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
 // the catalog-sync test deactivates rows; don't rely on a later test's beforeEach to
 // undo it — leave the registry sane for whichever suite runs next (order-independence)
-afterAll(async () => { await seedRegistry(); await db.modelRegistry.updateMany({ data: { active: true } }); });
+afterAll(async () => { await seedRegistry(); await db.modelRegistry.updateMany({ data: { active: true } }); await db.llmUsage.deleteMany({ where: { agent: { startsWith: "MBTEST" } } }); });
 beforeEach(async () => {
   await seedRegistry();
   await db.modelRegistry.updateMany({ data: { reliability: 50, avgLatencyMs: 0, measuredWins: 0, measuredLosses: 0, active: true } });

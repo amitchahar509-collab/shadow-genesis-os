@@ -769,3 +769,19 @@ Work Log:
 Verification: tsc 0; eslint 0; 223/223 (was 219) on committed AND fresh CI-style db. LIVE on the real db: EX_SEQ=439 (the counter had already absorbed the full test-suite churn), maxExec=439, maxUsage=146; a REAL DESIGN run minted EX-000440 - strictly above every id any table references - and the counter ratcheted to 440. The EX-000027 collision class is dead.
 
 Commit: cycle 34 committed on branch main.
+
+---
+Task ID: 37
+Agent: Claude Code (Fable 5) - cycle 35: daily LLM budget guard + honest spend ledger
+
+Task: "Continue." Audit: FREE_GENESIS_MODE guarantees $0 only while premium is OFF - with PREMIUM_MODE=true there was cost TRACKING (expectedCost, importance, LlmUsage) but no ENFORCEMENT. One premium session with a retry-happy loop could burn arbitrary credits. "Never burn credits accidentally" was only half-built.
+
+Work Log:
+- dailyBudgetUsd(): GENESIS_DAILY_BUDGET_USD - unset -> $25/day default safety net; "off"/"unlimited" -> uncapped (explicit opt-out); 0 -> every paid hop blocked; garbage -> default. todaySpendUsd(): aggregate of estimated-from-real-tokens costUsd since local midnight.
+- callLlmRouted hop loop: one spend query per call (premium mode only - free hops are $0 by construction); any hop whose preEstimate would cross the cap is SKIPPED_BUDGET pre-call and the chain DEGRADES to its free hops instead of failing or burning. Soft cap documented honestly: concurrent calls can overshoot by their in-flight estimates. usageSummary exposes budget {capUsd, todaySpendUsd, remainingUsd, enforced} (null cap when uncapped - JSON-safe).
+- FOUND during live verification - fake spend polluting the REAL ledger: 30 LlmUsage rows (ENGINEERING claude-sonnet-5/-4, exactly 100/50 fake-seam tokens, executionId null, $0.00105 each) accumulated one per suite run from router.test's fallback test, and were feeding todaySpendUsd. Provenance-checked as fiction (no ANTHROPIC_API_KEY has ever been configured; ok=true on paid openrouter models was impossible on a zero-credit account) and purged. Sources fixed: the fallback test now tags executionId ROUTERTEST-fb and deletes its rows; afterAll llmUsage wipes added to router/budget/model-brain/free-mode suites. Post-suite residue check: 0 test rows, todaySpend $0 (the truthful number - every real call this whole effort has been free-tier).
+- Tests (budget.test.ts, 7): env semantics (default/off/0/garbage); over-budget -> ZERO paid invocations with free-hop rescue or honest SKIPPED_BUDGET refusal; under-budget -> premium primary runs untouched; 0-budget blocks paid at $0 spend; free mode ignores the env; usageSummary budget block. Tests compute the baseline spend and set caps relative to it - no assumption of an empty ledger.
+
+Verification: tsc 0; eslint 0; 230/230 (was 223) on committed AND fresh CI-style db; zero test-usage residue after the suite. LIVE with real keys: PREMIUM_MODE=true + GENESIS_DAILY_BUDGET_USD=0 -> real call completed on gemini-flash-latest at $0 (paid hops skipped pre-call, free hop rescued); earlier same-setup run during saturated free pools failed HONESTLY (SKIPPED_BUDGET + upstream 429s, zero paid attempts - verified against usage rows: the only paid-model attempts on record are yesterday's known 402 saga). Budget block live: cap=$0 today=$0 enforced=true.
+
+Commit: cycle 35 committed on branch main.

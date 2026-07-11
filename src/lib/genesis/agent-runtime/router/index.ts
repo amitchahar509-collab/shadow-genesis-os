@@ -104,6 +104,23 @@ export function expectedCost(model: string, opts: LlmOptions): number {
   return estimateCost(model, promptTokens, opts.maxTokens ?? 1500);
 }
 
+/** Daily LLM budget — the premium-mode safety net ("never burn credits accidentally").
+ *  GENESIS_DAILY_BUDGET_USD: unset → $25/day default; "off"/"unlimited" → uncapped;
+ *  0 → every paid hop blocked. Free models are always exempt ($0 by construction). */
+export function dailyBudgetUsd(): number {
+  const raw = (process.env.GENESIS_DAILY_BUDGET_USD ?? "").trim().toLowerCase();
+  if (raw === "off" || raw === "unlimited") return Infinity;
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 25;
+}
+
+/** Estimated-from-real-tokens spend since local midnight. */
+export async function todaySpendUsd(): Promise<number> {
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const agg = await db.llmUsage.aggregate({ _sum: { costUsd: true }, where: { createdAt: { gte: midnight } } }).catch(() => ({ _sum: { costUsd: 0 } }));
+  return Math.round((agg._sum.costUsd ?? 0) * 1e6) / 1e6;
+}
+
 export function availableProviders(): Set<RoutableProvider> {
   const s = new Set<RoutableProvider>();
   if (process.env.ANTHROPIC_API_KEY) s.add("anthropic");
@@ -246,6 +263,12 @@ export async function callLlmRouted(
     return { ok: false, text: "", error: "NO_PROVIDER: set ANTHROPIC_API_KEY or OPENROUTER_API_KEY", durationMs: Date.now() - start, capability, costUsd: 0, fallbackDepth: 0, importance };
   }
 
+  // Budget guard (premium only — free-mode hops are $0 by construction): one
+  // spend query per call; enforcement is pre-call on estimates, so concurrent
+  // calls can overshoot by at most their in-flight estimates (soft cap, honest).
+  const budget = premiumMode() ? dailyBudgetUsd() : Infinity;
+  const spentToday = budget !== Infinity ? await todaySpendUsd() : 0;
+
   let lastError = "";
   let totalRetries = 0;
   for (let depth = 0; depth < chain.length; depth++) {
@@ -253,6 +276,9 @@ export async function callLlmRouted(
     // Never burn credits accidentally: in free mode, refuse any non-$0 hop outright.
     if (!premiumMode() && !(await isFreeModel(hop.model))) { lastError = `SKIPPED_PAID_MODEL ${hop.model} (PREMIUM_MODE not enabled)`; continue; }
     const preEstimate = expectedCost(hop.model, opts);
+    // …and never past the daily cap: skip paid hops that would exceed it — the
+    // chain degrades to its free hops instead of silently burning credits.
+    if (preEstimate > 0 && spentToday + preEstimate > budget) { lastError = `SKIPPED_BUDGET ${hop.model} (est $${preEstimate} + $${spentToday} spent today > daily cap $${budget}; raise GENESIS_DAILY_BUDGET_USD or wait for midnight)`; continue; }
     for (let attempt = 0; attempt < 2; attempt++) { // Fallback 2.0: retry the same model once on transient errors
       const t0 = Date.now();
       try {
@@ -329,5 +355,11 @@ export async function usageSummary(windowHours = 24 * 30) {
     byModel: group((r) => r.model),
     byAgent: group((r) => r.agent),
     costNote: "cost is an ESTIMATE (real tokens × published per-1M rates)",
+    budget: {
+      capUsd: dailyBudgetUsd() === Infinity ? null : dailyBudgetUsd(),
+      todaySpendUsd: await todaySpendUsd(),
+      remainingUsd: dailyBudgetUsd() === Infinity ? null : Math.max(0, Math.round((dailyBudgetUsd() - await todaySpendUsd()) * 1e6) / 1e6),
+      enforced: premiumMode(), // free mode never reaches a paid hop anyway
+    },
   };
 }

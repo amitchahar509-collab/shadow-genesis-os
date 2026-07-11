@@ -16,7 +16,7 @@ function freeMode(...keys: string[]) { for (const k of KEYS) delete process.env[
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
 // the discovery test's fake catalog sync deactivates every premium openrouter row and
 // nothing re-activates them; leave the registry sane for whichever suite runs next
-afterAll(async () => { await seedRegistry(); await db.modelRegistry.updateMany({ data: { active: true } }); });
+afterAll(async () => { await seedRegistry(); await db.modelRegistry.updateMany({ data: { active: true } }); await db.llmUsage.deleteMany({ where: { agent: { startsWith: "FREETEST" } } }); });
 beforeEach(async () => {
   await seedRegistry();
   await db.modelRegistry.updateMany({ data: { reliability: 50, avgLatencyMs: 0, measuredWins: 0, measuredLosses: 0, active: true } });
