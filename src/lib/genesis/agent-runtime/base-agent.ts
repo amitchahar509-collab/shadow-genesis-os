@@ -158,12 +158,25 @@ export interface AgentRunContext {
 }
 
 async function nextExecutionNumber(): Promise<number> {
-  // String ordering on ids breaks once digit counts differ — take recent rows
-  // by createdAt (allocation is monotonic) and compute the max numerically.
-  const recent = await db.agentExecution.findMany({ orderBy: { createdAt: "desc" }, take: 50, select: { executionId: true } });
-  let max = 0;
-  for (const r of recent) { const m = r.executionId.match(/^EX-(\d+)$/); if (m) max = Math.max(max, parseInt(m[1], 10)); }
-  return max + 1;
+  // Persistent monotonic sequence (GenesisState "EX_SEQ"). The old recent-50
+  // max-scan re-minted ids after test wipes deleted the high-water rows, which
+  // cross-linked unrelated runs' LlmUsage/artifact/tool trails under one id.
+  // The counter only ever ratchets forward, so a deleted execution row can never
+  // cause its id to be reissued. Callers are serialized (executionIdChain), and
+  // the create's P2002 retry walks past any cross-process race.
+  let row = await db.genesisState.findUnique({ where: { key: "EX_SEQ" } });
+  if (!row) {
+    // fresh db, or db predating the sequence: seed from every table that holds
+    // executionIds — orphaned LlmUsage rows keep the true high-water mark after
+    // execution rows are wiped
+    const [a] = await db.$queryRaw<{ m: number | bigint | null }[]>`SELECT MAX(CAST(SUBSTR(executionId, 4) AS INTEGER)) AS m FROM AgentExecution WHERE executionId LIKE 'EX-%'`;
+    const [u] = await db.$queryRaw<{ m: number | bigint | null }[]>`SELECT MAX(CAST(SUBSTR(executionId, 4) AS INTEGER)) AS m FROM LlmUsage WHERE executionId LIKE 'EX-%'`;
+    const seed = Math.max(Number(a?.m ?? 0), Number(u?.m ?? 0));
+    row = await db.genesisState.create({ data: { key: "EX_SEQ", value: String(seed) } }).catch(async () => (await db.genesisState.findUnique({ where: { key: "EX_SEQ" } }))!);
+  }
+  const next = parseInt(row.value, 10) + 1;
+  await db.genesisState.update({ where: { key: "EX_SEQ" }, data: { value: String(next) } });
+  return next;
 }
 
 // Parallel agents racing nextExecutionNumber() used to mint duplicate EX ids

@@ -752,3 +752,20 @@ Verification: tsc 0; eslint 0; 219/219 (was 213) on committed AND fresh CI-style
 - Anomaly chased during verification: a paid-model 402 usage row appeared under EX-000027 - turned out to be YESTERDAY's row from a different run: nextExecutionNumber's recent-50 scan re-mints executionIds after test wipes delete the high-water row, cross-linking unrelated runs' LlmUsage trails. Today's call was clean (free mode, $0, no paid attempt). Logged as the next gap: execution-identity integrity.
 
 Commit: cycle 33 committed on branch main.
+
+---
+Task ID: 36
+Agent: Claude Code (Fable 5) - cycle 34: execution-identity integrity - persistent EX id ratchet (no more re-minted ids)
+
+Task: "Continue with the next gap." Found during cycle 33's live verification: three unrelated runs (yesterday's VENTURE 402, cycle 32's GROWTH demo, cycle 33's specialist) all carried executionId EX-000027. nextExecutionNumber scanned only the 50 most RECENT AgentExecution rows for the max - after test wipes deleted the high-water rows, old ids were re-minted and unrelated runs' LlmUsage/artifact/tool trails cross-linked under one id. Audit-trail corruption, silent.
+
+Work Log:
+- Fix (base-agent.ts): executionIds now come from a persistent monotonic sequence - GenesisState key "EX_SEQ". Read -> +1 -> update -> mint, all inside the existing in-process serialization chain, with the existing create-P2002 retry walking past any cross-process race. The counter only ratchets forward: deleting execution rows can never cause an id to be reissued.
+- Seeding (one-time, fresh or pre-sequence dbs): max over BOTH AgentExecution AND LlmUsage executionIds (raw SELECT MAX(CAST(SUBSTR..))) - orphaned usage rows hold the true high-water mark after wipes; seeding from executions alone would re-mint against orphans. Seed-create races resolve by re-reading.
+- First attempt used a single raw UPDATE..RETURNING for atomicity - under 5 parallel executes it contended on SQLite locks (6.7s stall), blew the test timeout, and the zombie run's catch-path update then hit the next test's wipe (P2025 fallout between tests). Replaced with plain Prisma ops (same op profile as the proven old allocator); parallel suite went from 19.5s/2-fail to 1.4s/4-pass.
+- Tests (execution-identity.test.ts, 4): delete-newest-row -> next id still strictly greater (the exact bug); counter seeding respects a synthetic orphaned usage row 100 above max; 5 parallel allocations unique; monotonic across runs with EX_SEQ >= last id (ratchet asserted).
+- Known remaining (documented, not hidden): other id families (PLG-/VC-/RUN-/BM-...) still use bounded max-scans; their rows are not routinely wiped the way executions are, so re-mint exposure is low - candidates for the same ratchet if it ever bites.
+
+Verification: tsc 0; eslint 0; 223/223 (was 219) on committed AND fresh CI-style db. LIVE on the real db: EX_SEQ=439 (the counter had already absorbed the full test-suite churn), maxExec=439, maxUsage=146; a REAL DESIGN run minted EX-000440 - strictly above every id any table references - and the counter ratcheted to 440. The EX-000027 collision class is dead.
+
+Commit: cycle 34 committed on branch main.
