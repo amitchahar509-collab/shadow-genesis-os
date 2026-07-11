@@ -3,7 +3,7 @@
 import { test, expect, beforeEach, afterAll } from "bun:test";
 import { db } from "@/lib/db";
 import { evolveAgent, evolveAll, evaluateAgent } from "@/lib/genesis/agent-runtime/evolution";
-import { setPrompt, getActivePrompt, listVersions } from "@/lib/genesis/agent-runtime/improvement/prompts";
+import { setPrompt, getActivePrompt, listVersions, recordOutcome } from "@/lib/genesis/agent-runtime/improvement/prompts";
 
 async function seedExecutions(agent: string, statuses: ("SUCCESS" | "FAILED")[]) {
   let i = 0;
@@ -24,7 +24,13 @@ async function wipe(agent: string) {
   await db.plugin.deleteMany({ where: { refKey: { startsWith: agent } } }); // auto-published specialists
 }
 
-const AGENTS = ["EVOTESTNONE", "EVOTESTHEALTHY", "EVOTESTRETIRE", "EVOTESTIMPROVE", "EVOTESTSPEC"];
+const AGENTS = ["EVOTESTNONE", "EVOTESTHEALTHY", "EVOTESTRETIRE", "EVOTESTIMPROVE", "EVOTESTSPEC", "EVOTESTREGRESS"];
+
+/** real-outcome shorthand: record n success + m fail onto a version */
+async function outcomes(id: string, ok: number, fail: number) {
+  for (let i = 0; i < ok; i++) await recordOutcome(id, true);
+  for (let i = 0; i < fail; i++) await recordOutcome(id, false);
+}
 beforeEach(async () => { for (const a of AGENTS) await wipe(a); });
 afterAll(async () => { for (const a of AGENTS) await wipe(a); }); // committed db — no residue
 
@@ -82,6 +88,46 @@ test("persistent recurring failure → CREATE_SPECIALIST proposes a template", a
   expect(listed).not.toBeNull();
   expect(listed!.source).toBe("EVOLUTION");
   expect(r.detail).toContain(listed!.pluginId);
+});
+
+test("ROLLBACK_PROMPT: a version measurably worse than its predecessor is rolled back on real outcomes", async () => {
+  const v1 = await setPrompt("EVOTESTREGRESS", "v1 prompt");
+  await outcomes(v1.id, 8, 2); // 80% over 10 real outcomes
+  const v2 = await setPrompt("EVOTESTREGRESS", "v2 prompt (worse)");
+  await outcomes(v2.id, 2, 8); // 20% over 10 — a real regression
+  const r = await evolveAgent("EVOTESTREGRESS"); // no AgentExecution rows needed: version data decides
+  expect(r.kind).toBe("ROLLBACK_PROMPT");
+  expect(r.applied).toBe(true);
+  expect(r.reason).toContain("v2 at 20%");
+  expect((await getActivePrompt("EVOTESTREGRESS"))!.version).toBe(1); // v1 re-activated
+  // no oscillation: v1 is now the oldest-active — the next sweep has no "previous" to prefer
+  const again = await evolveAgent("EVOTESTREGRESS");
+  expect(again.kind).not.toBe("ROLLBACK_PROMPT");
+  expect((await getActivePrompt("EVOTESTREGRESS"))!.version).toBe(1);
+});
+
+test("ROLLBACK_PROMPT requires evidence: thin samples or small deltas never roll back", async () => {
+  const v1 = await setPrompt("EVOTESTREGRESS", "v1");
+  await outcomes(v1.id, 8, 2); // 80%
+  const v2 = await setPrompt("EVOTESTREGRESS", "v2");
+  await outcomes(v2.id, 1, 3); // 25% but only 4 outcomes (< MIN_VERSION_OUTCOMES)
+  expect((await evolveAgent("EVOTESTREGRESS")).kind).not.toBe("ROLLBACK_PROMPT");
+  await outcomes(v2.id, 6, 0); // now 7/10 = 70% — worse than 80% but inside the 15-point margin
+  expect((await evolveAgent("EVOTESTREGRESS")).kind).not.toBe("ROLLBACK_PROMPT");
+  expect((await getActivePrompt("EVOTESTREGRESS"))!.version).toBe(2); // v2 keeps its seat
+});
+
+test("ROLLBACK_PROMPT dry-run records the decision but keeps the regressing version active", async () => {
+  const v1 = await setPrompt("EVOTESTREGRESS", "v1");
+  await outcomes(v1.id, 9, 1);
+  const v2 = await setPrompt("EVOTESTREGRESS", "v2");
+  await outcomes(v2.id, 1, 9);
+  const r = await evolveAgent("EVOTESTREGRESS", { apply: false });
+  expect(r.kind).toBe("ROLLBACK_PROMPT");
+  expect(r.applied).toBe(false);
+  expect((await getActivePrompt("EVOTESTREGRESS"))!.version).toBe(2); // unchanged
+  const action = await db.evolutionAction.findUnique({ where: { actionId: r.actionId } });
+  expect(action).not.toBeNull(); // but the decision is on the record
 });
 
 test("dry-run (apply:false) records the decision but changes nothing", async () => {

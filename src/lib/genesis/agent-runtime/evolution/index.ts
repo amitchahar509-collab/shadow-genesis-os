@@ -21,7 +21,7 @@
 
 import { db } from "@/lib/db";
 import { computeAgentMetrics } from "../observability/metrics";
-import { getActivePrompt, setPrompt, rollback, listVersions } from "../improvement/prompts";
+import { getActivePrompt, setPrompt, rollback, listVersions, activateVersion } from "../improvement/prompts";
 import { canUseTool } from "../tools";
 import { emit } from "../event-bus";
 import { publishPlugin } from "../plugins";
@@ -31,7 +31,12 @@ const HEALTHY = 0.8;         // ≥ → healthy, no action
 const RETIRE = 0.34;         // < → catastrophic, retire the workflow
 const SPECIALIST_OCC = 4;    // recurring-failure occurrences that warrant a specialist
 
-export type EvolutionKind = "IMPROVE_PROMPT" | "RETIRE_WORKFLOW" | "CREATE_SPECIALIST" | "NO_ACTION";
+export type EvolutionKind = "IMPROVE_PROMPT" | "ROLLBACK_PROMPT" | "RETIRE_WORKFLOW" | "CREATE_SPECIALIST" | "NO_ACTION";
+
+// Version-regression guardrail: both versions need this many REAL recorded
+// outcomes, and the active one must be this much worse (absolute rate) to roll back.
+const MIN_VERSION_OUTCOMES = 5;
+const REGRESSION_MARGIN = 0.15;
 
 export interface AgentEvaluation {
   agent: string;
@@ -73,6 +78,31 @@ export async function evolveAgent(agent: string, opts?: { windowHours?: number; 
   let kind: EvolutionKind = "NO_ACTION";
   let reason = "";
   let detail = "";
+
+  // Version-level guardrail FIRST — decidable purely from real per-version outcome
+  // counts (recorded by the runtime since the loop closed), independent of the
+  // execution-window metrics below. A newer prompt that performs measurably worse
+  // than its predecessor gets rolled back; rolling back to the older version makes
+  // it the oldest-active, so this can never oscillate.
+  const versions = await listVersions(A);
+  const active = versions.find((v) => v.active);
+  const prev = active ? versions[versions.findIndex((v) => v.id === active.id) + 1] : undefined;
+  if (active && prev) {
+    const nA = active.successCount + active.failCount, nP = prev.successCount + prev.failCount;
+    if (nA >= MIN_VERSION_OUTCOMES && nP >= MIN_VERSION_OUTCOMES) {
+      const rA = active.successCount / nA, rP = prev.successCount / nP;
+      if (rA < rP - REGRESSION_MARGIN) {
+        kind = "ROLLBACK_PROMPT";
+        reason = `prompt regression: v${active.version} at ${(rA * 100).toFixed(0)}% over ${nA} real outcomes vs v${prev.version} at ${(rP * 100).toFixed(0)}% over ${nP} — the newer prompt is measurably worse.`;
+        if (apply) { await activateVersion(prev.id); detail = `re-activated v${prev.version} (real outcomes, not opinion)`; }
+        else detail = `dry-run: would re-activate v${prev.version}`;
+        const actionId = await nextActionId();
+        await db.evolutionAction.create({ data: { actionId, agent: A, kind, reason, metrics: JSON.stringify(m ?? {}), applied: apply, detail } });
+        await emit({ agent: "EVOLUTION", action: kind, detail: `${actionId} ${A}: ${reason.slice(0, 120)}`, level: "WARNING", category: "SYSTEM" });
+        return { actionId, agent: A, kind, reason, applied: apply, detail, metrics: m };
+      }
+    }
+  }
 
   if (!m || m.totalExecutions < MIN_SAMPLES) {
     kind = "NO_ACTION";

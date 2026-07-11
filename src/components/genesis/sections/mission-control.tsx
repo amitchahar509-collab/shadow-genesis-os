@@ -219,7 +219,7 @@ export function MissionControl() {
             {evolutions.map((e) => (
               <li key={e.actionId} className="font-mono text-[10px] text-zinc-300 flex items-center gap-2 flex-wrap">
                 <span className="text-violet-300">{e.actionId}</span>
-                <Chip variant={e.kind === "RETIRE_WORKFLOW" ? "rose" : e.kind === "NO_ACTION" ? "zinc" : "violet"}>{e.kind}</Chip>
+                <Chip variant={e.kind === "RETIRE_WORKFLOW" || e.kind === "ROLLBACK_PROMPT" ? "rose" : e.kind === "NO_ACTION" ? "zinc" : "violet"}>{e.kind}</Chip>
                 {e.applied && <Chip variant="emerald">applied</Chip>}
                 <span className="text-zinc-500">{e.agent}</span>
                 {typeof e.metrics?.successRate === "number" && <span className="text-zinc-600">{Math.round(e.metrics.successRate * 100)}%/{e.metrics.totalExecutions}</span>}

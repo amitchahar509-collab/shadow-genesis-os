@@ -785,3 +785,20 @@ Work Log:
 Verification: tsc 0; eslint 0; 230/230 (was 223) on committed AND fresh CI-style db; zero test-usage residue after the suite. LIVE with real keys: PREMIUM_MODE=true + GENESIS_DAILY_BUDGET_USD=0 -> real call completed on gemini-flash-latest at $0 (paid hops skipped pre-call, free hop rescued); earlier same-setup run during saturated free pools failed HONESTLY (SKIPPED_BUDGET + upstream 429s, zero paid attempts - verified against usage rows: the only paid-model attempts on record are yesterday's known 402 saga). Budget block live: cap=$0 today=$0 enforced=true.
 
 Commit: cycle 35 committed on branch main.
+
+---
+Task ID: 38
+Agent: Claude Code (Fable 5) - cycle 36: ROLLBACK_PROMPT - per-version real outcomes now steer evolution (regression guardrail)
+
+Task: "Continue with the next gap." Audit: since cycle 32 every real run records success/fail onto the ACTIVE PromptVersion, but evolution still decided only from aggregate AgentExecution metrics - a prompt version measurably WORSE than its predecessor was never rolled back. The per-version outcome data steered nothing.
+
+Work Log:
+- New EvolutionKind ROLLBACK_PROMPT (additive). The guardrail runs FIRST in evolveAgent - decidable purely from per-version real outcome counts, independent of the execution-window metrics: if the active version and its predecessor BOTH have >= 5 real outcomes and the active rate is >= 15 points worse, re-activate the predecessor. Evidence-gated on both sides: thin samples never roll back, small deltas never roll back.
+- No-oscillation by construction: rolling back makes the older version the active one whose "previous" is older still (or absent) - the rolled-back-FROM version can never be preferred again by this rule; only a fresh IMPROVE_PROMPT can supersede.
+- Dry-run parity: apply:false records the EvolutionAction (kind/reason with both rates) but keeps the regressing version active. Emits WARNING-level event. Dashboard: mission-control chips render ROLLBACK_PROMPT rose (same severity family as RETIRE_WORKFLOW).
+- Interlock with the rest of the flywheel: after a rollback, SKILL plugin refreshStats reads the re-activated version's outcomes (consistent); BaseAgent's next execution resolves the restored prompt automatically.
+- Tests (+3 in evolution.test.ts): 80%-vs-20% regression rolls back to v1 and a second sweep does NOT oscillate; 4-outcome samples and 10-point deltas both refuse (evidence gates); dry-run records but keeps v2 active.
+
+Verification: tsc 0; eslint 0; 233/233 (was 230) on committed AND fresh CI-style db. LIVE dry-run on the real db: GROWTH lineage is v1-only with 1 real outcome -> guardrail correctly finds no predecessor to compare, decision falls through to honest "insufficient data", active version untouched. The new path executed against real data and told the truth instead of inventing a regression.
+
+Commit: cycle 36 committed on branch main.
