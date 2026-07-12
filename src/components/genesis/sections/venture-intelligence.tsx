@@ -24,6 +24,7 @@ import { CustomerSuccess } from "./customer-success";
 import { Economics } from "./economics";
 import { CompanyOS } from "./company-os";
 import { ActionConnectors } from "./action-connectors";
+import { Enterprise } from "./enterprise";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -234,6 +235,9 @@ export function VentureIntelligence() {
 
       {/* ===== Real action connectors (V10 Module 10) ===== */}
       <ActionConnectors />
+
+      {/* ===== Enterprise hardening (V10 Module 11) ===== */}
+      <Enterprise />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />

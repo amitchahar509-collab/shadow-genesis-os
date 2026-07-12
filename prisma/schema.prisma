@@ -360,6 +360,60 @@ model SecurityFinding {
   resolvedAt  DateTime?
 }
 
+// ============ V10 MODULE 11 — ENTERPRISE HARDENING ============
+// Metadata + orchestration over the EXISTING auth/approval/audit systems. Backups
+// are honest: without storage config they are UNCONFIGURED — never a fabricated
+// success. GDPR/backup executions are approval-gated.
+model OrgPolicy {
+  id             String   @id @default(cuid())
+  orgId          String   @unique
+  dailyApiQuota  Int      @default(2000)
+  maxCompanies   Int      @default(50)
+  maxStorageMb   Int      @default(1024)
+  dataRetentionDays Int   @default(365)
+  allowedConnectors String @default("[]") // JSON string[] — empty = all
+  requireApprovalForExternal Boolean @default(true)
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+}
+
+model BackupRecord {
+  id           String   @id @default(cuid())
+  backupId     String   @unique // BK-000001
+  orgId        String   @default("global")
+  scope        String   @default("FULL") // FULL | ORG | COMPANY
+  scopeKey     String? // orgId/companyKey when scoped
+  status       String   @default("UNCONFIGURED") // UNCONFIGURED | PENDING | COMPLETED | FAILED | RESTORED
+  storageTarget String? // where it went (redacted) — null when UNCONFIGURED
+  manifest     String   @default("{}") // JSON — REAL per-table row counts
+  sizeBytes    Int      @default(0)
+  checksum     String?
+  approvalId   String?
+  error        String?
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+
+  @@index([orgId])
+  @@index([status])
+}
+
+model GdprRequest {
+  id           String   @id @default(cuid())
+  requestId    String   @unique // GDPR-000001
+  subjectType  String   // USER | COMPANY
+  subjectKey   String   // userId | companyKey
+  kind         String   // EXPORT | DELETE
+  status       String   @default("PENDING_APPROVAL") // PENDING_APPROVAL | APPROVED | COMPLETED | REJECTED | FAILED
+  approvalId   String?
+  resultSummary String? // REAL export manifest / deletion counts (no personal data echoed)
+  requestedBy  String   @default("SYSTEM")
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+
+  @@index([subjectKey])
+  @@index([kind])
+}
+
 // ============ V10 MODULE 10 — REAL ACTION CONNECTORS ============
 // Every external mutation is approval-gated and recorded here. Payloads/responses
 // are REDACTED before persistence — no credential ever lands in this ledger.
