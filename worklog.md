@@ -945,3 +945,20 @@ Work Log:
 Verification: tsc 0; eslint 0; 304/304 (was 294) on committed AND fresh CI-style db. LIVE end-to-end (then purged): empty health UNKNOWN; 4 real users / 12 events, funnel SIGNUP 4 -> ACTIVATION 3 (25% drop) -> RETAINED 2 (33% drop) -> CHURNED 1; real BUG ticket TICK-000001 -> auto task T-110 via reality signal RS-000005; satisfaction 3 complaints > 1 praise, sentiment -0.5; health 34 CHURNING with real drivers; recurring "performance" theme (2) -> 1 improvement task. Purged 12 events / 4 tickets / 8 signals to keep the committed db honest.
 
 Commit: cycle 44 committed on branch main.
+
+---
+Task ID: 47
+Agent: Claude Code (Fable 5) - cycle 45: V10 Module 8 - Economic Brain (real burn/runway/profit, forecasts labeled SIMULATION)
+
+Task: V10 Module 8 - reason about revenue, profit, burn, runway, pricing, margins, ROI, forecasting. Never fabricate a projection as fact.
+
+Phase 0 (reuse, no rebuild): revenue-engine.computeUnitEconomics (MRR/ARR/net revenue - REAL/UNKNOWN), recordMarketingSpend (GrowthMetric), and the LlmUsage cost ledger (REAL compute spend = genuine burn). Key honesty insight: Genesis's LLM spend is REAL burn, so even at $0 revenue the burn + loss are real; forecasts are the only SIMULATION. No new tables - cash/operating costs reuse GrowthMetric like marketing spend.
+
+Work Log:
+- economic-brain/index.ts: recordOperatingCost + recordCashBalance (GrowthMetric rows). computeBurn (REAL - LlmUsage cost + recorded marketing/operating, normalized monthly; compute is ALWAYS real, marketing/operating UNKNOWN until recorded). computeRunway (real cash / real burn -> months + zeroDate; UNKNOWN without a cash snapshot; latest snapshot wins). computeProfitability (MRR - burn; a $0-revenue result is a REAL loss with note "revenue $0 (real) - real burn = a real loss"; gross margin from revenue - compute COGS). computeROI (marketing ROI, UNKNOWN without both real spend + real revenue). forecast (ALWAYS label SIMULATION, assumptions attached, compounds MRR/burn/cash forward on REAL starting values). economicHealth (PROFITABLE/RUNWAY_CRITICAL/REVENUE_NEGATIVE_MARGIN/PRE_REVENUE_BURN). economicOverview.
+- API /api/genesis/economics (guardWrite): operating-cost|cash-balance + GET burn/runway/profit/roi/health/forecast views. Dashboard Economic Brain panel (health chip, stat tiles with real/unknown coloring, negative profit in rose) wired into Venture Intelligence.
+- Tests (economic-brain.test.ts, 10): burn always real from ledger; burn includes recorded marketing+operating; runway UNKNOWN->REAL with cash; latest cash wins; $0-revenue profit is a REAL negative loss; real-revenue profit+margin REAL; ROI UNKNOWN->REAL; forecast always SIMULATION+assumptions; PRE_REVENUE_BURN health; RUNWAY_CRITICAL on short real runway. Fixed during dev: burn reads the WHOLE real ledger (correct) so exact-equality assertions were wrong -> baseline-relative + scoped the revenue wipe to test rows (never touch unrelated real revenue).
+
+Verification: tsc 0; eslint 0; 314/314 (was 304) on committed AND fresh CI-style db. LIVE over the real ledger: compute burn $0.48 REAL (Genesis's genuine spend), monthly $0.48; profit -$0.48 REAL loss vs $0 real revenue (stated plainly); health PRE_REVENUE_BURN with runway UNKNOWN; recorded a demo $5000 cash -> runway 10416 months REAL (near-zero burn because free models - honest); forecast labeled SIMULATION with assumptions, mrr stays $0 (no real starting revenue). Purged the demo cash snapshot.
+
+Commit: cycle 45 committed on branch main.

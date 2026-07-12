@@ -21,6 +21,7 @@ import { DeploymentCloud } from "./deployment-cloud";
 import { Observability } from "./observability";
 import { SecurityEngine } from "./security-engine";
 import { CustomerSuccess } from "./customer-success";
+import { Economics } from "./economics";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -222,6 +223,9 @@ export function VentureIntelligence() {
 
       {/* ===== Customer success (V10 Module 7) ===== */}
       <CustomerSuccess />
+
+      {/* ===== Economic brain (V10 Module 8) ===== */}
+      <Economics />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />
