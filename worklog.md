@@ -962,3 +962,20 @@ Work Log:
 Verification: tsc 0; eslint 0; 314/314 (was 304) on committed AND fresh CI-style db. LIVE over the real ledger: compute burn $0.48 REAL (Genesis's genuine spend), monthly $0.48; profit -$0.48 REAL loss vs $0 real revenue (stated plainly); health PRE_REVENUE_BURN with runway UNKNOWN; recorded a demo $5000 cash -> runway 10416 months REAL (near-zero burn because free models - honest); forecast labeled SIMULATION with assumptions, mrr stays $0 (no real starting revenue). Purged the demo cash snapshot.
 
 Commit: cycle 45 committed on branch main.
+
+---
+Task ID: 48
+Agent: Claude Code (Fable 5) - cycle 46: V10 Module 9 - Company OS (per-company aggregation of real module data)
+
+Task: V10 Module 9 - every company gets CRM, customers, leads, projects, tasks, finance, knowledge, analytics, support, operations. Reuse everything; no duplicate systems.
+
+Phase 0 (reuse audit): nearly every piece already exists as a real system keyed by companyKey. The pipeline convention is companyKey == productKey == subject. So Company OS is an AGGREGATION/scoping layer, NOT new stores: CRM/leads -> Lead/OutreachDraft/LeadInteraction (subject=companyKey, Module 2); finance -> RevenueEvent (projectId=companyKey, Module 3); analytics -> ProductEvent (productKey, Module 7); support -> SupportTicket (productKey, Module 7) + satisfaction(); projects -> Project (key); tasks -> GenesisTask (no FK - reality/CS tasks embed the key in description, so scoped by description contains key); operations -> GrowthExperiment (subject) + LongMission (companyKey) + ActivityLog; knowledge -> MemoryEntry (tag/source/content contains key).
+
+Work Log:
+- company-os/index.ts: ensureCompany (upsert workspace, idempotent - ventures also create these); 8 real scoped section aggregators (crm/customers/finance/projects/analytics/support/operations/knowledge) each querying its OWNING module's real table by the companyKey join; companyWorkspace (full 10-section view, honest 'not found' for unknown company, honest empties per section); companyHealth (composite REAL score from real finance+analytics+support, UNKNOWN when empty); companyOverview (portfolio roll-up per company). No new tables.
+- API /api/genesis/company-os (guardWrite): GET overview / ?workspace= / ?health=; POST ensure. Existing /companies (list+create) untouched. Dashboard Company OS panel (portfolio table: leads/MRR/users/open-tickets per company) wired into Venture Intelligence.
+- Tests (company-os.test.ts, 6): ensureCompany idempotent; unknown company -> honest error; empty workspace all-sections-empty; workspace aggregates REAL data seeded via Modules 2/3/7 (leads/customers/analytics/support/finance MRR); health UNKNOWN->REAL; portfolio roll-up. Fixed during dev: GenesisTask has no projectId FK -> scoped tasks by description contains key; removed an unused import.
+
+Verification: tsc 0; eslint 0; 320/320 (was 314) on committed AND fresh CI-style db. LIVE (then purged): DemoCo workspace aggregated 1 CRM lead (CUSTOMER) + 2 paying customers + $98 REAL MRR (2 events) + 3 active users (6 events) + 1 open ticket + operations activity; companyHealth HEALTHY score 71 REAL with real drivers; portfolio roll-up matched. Purged 1 lead / 6 events / 1 ticket / 2 revenue / 1 company - committed db kept honest.
+
+Commit: cycle 46 committed on branch main.

@@ -22,6 +22,7 @@ import { Observability } from "./observability";
 import { SecurityEngine } from "./security-engine";
 import { CustomerSuccess } from "./customer-success";
 import { Economics } from "./economics";
+import { CompanyOS } from "./company-os";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -226,6 +227,9 @@ export function VentureIntelligence() {
 
       {/* ===== Economic brain (V10 Module 8) ===== */}
       <Economics />
+
+      {/* ===== Company OS (V10 Module 9) ===== */}
+      <CompanyOS />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />
