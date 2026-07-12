@@ -979,3 +979,22 @@ Work Log:
 Verification: tsc 0; eslint 0; 320/320 (was 314) on committed AND fresh CI-style db. LIVE (then purged): DemoCo workspace aggregated 1 CRM lead (CUSTOMER) + 2 paying customers + $98 REAL MRR (2 events) + 3 active users (6 events) + 1 open ticket + operations activity; companyHealth HEALTHY score 71 REAL with real drivers; portfolio roll-up matched. Purged 1 lead / 6 events / 1 ticket / 2 revenue / 1 company - committed db kept honest.
 
 Commit: cycle 46 committed on branch main.
+
+---
+Task ID: 49
+Agent: Claude Code (Fable 5) - cycle 47: V10 Module 10 - Real Action Connectors (approval-gated real external mutations)
+
+Task: V10 Module 10 - safely execute REAL external actions. Every mutation approval-gated; reuse security/approval/audit/auth; connectors report honest status; never fabricate a delivery.
+
+Phase 0 (reuse audit): Approval Engine (requestApproval/decide/guardExternalAction - single-use APPROVED->EXECUTED gate), security-engine (redactSecrets), auth (audit + guardWrite), event-bus, the FetchLike seam, revenue/cloud provider key-gating pattern. Built ON all of these - no new approval/security/audit systems.
+
+Work Log:
+- Schema (+1): ConnectorAction execution ledger (actionId, connector, operation, companyKey scope, redacted payload, approvalId, unique idempotencyKey, status PENDING_APPROVAL->APPROVED->EXECUTING->DELIVERED/FAILED/DEAD_LETTER/REJECTED, attempts, latencyMs, externalId=delivery proof, deliveryVerified). Credentials NEVER stored.
+- action-connectors/connectors.ts: 14 real connectors, each key-gated with a real read-only verify() + real mutating ops on the OFFICIAL API: github(create_issue), gitlab(create_issue), slack(post_message), discord(send_message), notion(create_page), linear(create_issue), jira(create_issue), hubspot(create_contact), gmail(send_email), google_calendar(create_event), google_sheets(append_row), webhook(post), zapier(trigger), n8n(trigger). Credentials only in request headers; missing creds -> UNCONFIGURED (never faked). Outlook/M365/Drive/Docs/MCP-bridge follow the same OAuth-gated shape (documented extension path); generic webhook covers REST/MCP endpoints.
+- action-connectors/index.ts orchestrator: connectorHealth/verifyConnector (CONNECTED/UNCONFIGURED/AUTH_FAILED/RATE_LIMITED/ERROR); requestAction (validate connector+op+required fields, redact payload, create ledger + ApprovalRequest, idempotent per key - NOTHING executes here); decideAction (human approve/reject); executeAction (requires APPROVED, consumes the approval ONCE via guardExternalAction single-use gate, retry-on-transient with backoff+timeout, delivery verified from the real external id, DEAD_LETTER on exhaustion, records latency/attempts/status/error, audited, company-scoped); retryAction (re-deliver a DEAD_LETTER without re-approval - authorization already happened); deadLetterQueue/actionsOverview. Test-env network lockout without a seam.
+- API /api/genesis/actions (guardWrite): request|decide|execute|retry + GET health/catalog/verify/deadletter. Dashboard Action Connectors panel (connector chips, approval/dead-letter counts, execution history with delivery-verified + external id) wired into Venture Intelligence.
+- Tests (action-connectors.test.ts, 14): catalog 14 connectors unconfigured-by-default; verify key-gated; unconfigured refused; missing-fields rejected pre-approval; APPROVAL GATE (no execute without approval, approve->DELIVERED with real external id); single-use (no re-execute); rejected never runs; retry-transient-then-succeed (3 attempts); exhausted->DEAD_LETTER + retryAction re-delivers; hard 400 fails without retry; idempotency (same key same action); multi-company isolation (separate approvals, scoped companyKey); credentials never persisted (redacted); test-env network lockout.
+
+Verification: tsc 0; eslint 0; 334/334 (was 320) on committed AND fresh CI-style db. LIVE: 13 connectors UNCONFIGURED without creds + webhook CONNECTED (honest); real network verify of github with no token -> UNCONFIGURED "no fabricated connection"; approval-gated lifecycle (seam transport) staged ACT-000001 -> execute-before-approval REFUSED -> approved -> DELIVERED externalId #101 deliveryVerified attempts=1 -> replay REFUSED (single-use) -> ledger has no secret (payloadHasSecret=false). Demo purged.
+
+Commit: cycle 47 committed on branch main.

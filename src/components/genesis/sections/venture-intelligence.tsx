@@ -23,6 +23,7 @@ import { SecurityEngine } from "./security-engine";
 import { CustomerSuccess } from "./customer-success";
 import { Economics } from "./economics";
 import { CompanyOS } from "./company-os";
+import { ActionConnectors } from "./action-connectors";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -230,6 +231,9 @@ export function VentureIntelligence() {
 
       {/* ===== Company OS (V10 Module 9) ===== */}
       <CompanyOS />
+
+      {/* ===== Real action connectors (V10 Module 10) ===== */}
+      <ActionConnectors />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />

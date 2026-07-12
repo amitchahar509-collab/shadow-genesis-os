@@ -360,6 +360,37 @@ model SecurityFinding {
   resolvedAt  DateTime?
 }
 
+// ============ V10 MODULE 10 — REAL ACTION CONNECTORS ============
+// Every external mutation is approval-gated and recorded here. Payloads/responses
+// are REDACTED before persistence — no credential ever lands in this ledger.
+// Genesis never fabricates a delivery: status reflects the real API outcome.
+model ConnectorAction {
+  id              String   @id @default(cuid())
+  actionId        String   @unique // ACT-000001
+  connector       String   // github | slack | discord | notion | linear | jira | hubspot | webhook | ...
+  operation       String   // create_issue | post_message | create_page | ...
+  companyKey      String   @default("global") // scoping — an action never crosses companies
+  workspace       String? // optional sub-scope
+  agent           String   @default("SYSTEM")
+  payload         String   @default("{}") // JSON — REDACTED (no secrets)
+  approvalId      String? // ApprovalRequest.requestId — required before execution
+  idempotencyKey  String?  @unique // dedupe — same key never executes twice
+  status          String   @default("PENDING_APPROVAL") // PENDING_APPROVAL | APPROVED | EXECUTING | DELIVERED | FAILED | REJECTED | DEAD_LETTER
+  attempts        Int      @default(0)
+  maxAttempts     Int      @default(3)
+  latencyMs       Int      @default(0)
+  response        String? // REDACTED validated response summary
+  externalId      String? // id returned by the provider (issue #, message ts) — delivery proof
+  deliveryVerified Boolean @default(false)
+  error           String?
+  createdAt       DateTime @default(now())
+  executedAt      DateTime?
+
+  @@index([connector])
+  @@index([status])
+  @@index([companyKey])
+}
+
 // ============ V10 MODULE 7 — CUSTOMER SUCCESS ENGINE ============
 // REAL product signals only. A ProductEvent/SupportTicket exists solely for a
 // real reported event from a deployed product — Genesis never fabricates users,
