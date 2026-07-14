@@ -4,6 +4,12 @@ All notable changes to Shadow Genesis OS. Format based on [Keep a Changelog](htt
 
 Proprietary — private repository. No public distribution.
 
+## [v10.1.1] — 2026-07-14
+
+### Documentation
+- Added the `v10.1.0` CHANGELOG entry (application layer) and wired tag-synced version links (`/tree/<tag>`).
+- Docs-only patch on top of v10.1.0 — no code, dependency, or schema changes. CI `verify` + `docker` jobs green on `fbfe861`.
+
 ## [v10.1.0] — 2026-07-14
 
 Application layer — a self-serve app so a non-technical operator can configure and run Genesis without the terminal. Additive only; no new business modules, no architecture changes.
@@ -64,6 +70,7 @@ Final Execution Layer. Completes the V10 program: 12 additive modules over the e
 - Every output is labeled `REAL` / `SIMULATION` / `HEURISTIC` / `ESTIMATED` / `UNKNOWN`. Connectors report `VERIFIED` or `UNCONFIGURED`; figures with no real data read `$0`/`UNKNOWN` by design.
 - Deploy requires `DATABASE_URL`. Optional operator config (honestly `UNCONFIGURED` until set): `GENESIS_DB_ENCRYPTION_KEY`, `GENESIS_BACKUP_TARGET`, provider API keys, `GENESIS_AUTH_REQUIRED=1`.
 
+[v10.1.1]: https://github.com/amitchahar509-collab/shadow-genesis-os/tree/v10.1.1
 [v10.1.0]: https://github.com/amitchahar509-collab/shadow-genesis-os/tree/v10.1.0
 [v10.0.1]: https://github.com/amitchahar509-collab/shadow-genesis-os/tree/v10.0.1
 [v10.0.0]: https://github.com/amitchahar509-collab/shadow-genesis-os/tree/v10.0.0
