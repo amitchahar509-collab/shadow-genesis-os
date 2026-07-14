@@ -1,12 +1,15 @@
 "use client";
 
-/** G13 — Venture Intelligence panel: the decision chain made visible.
- *  VentureRun pipeline → AEGIS claims → Venture analyses → Customer sims → Board decisions.
+/** G13 — Venture Intelligence: the decision chain made visible, organized into
+ *  sub-sections so only the ACTIVE group's panels mount. This bounds concurrent
+ *  polling (was ~21 simultaneous loops across all panels; now only the visible
+ *  group polls) — a real performance + UX improvement, no engine change.
+ *
  *  Honesty labels (HEURISTIC / SIMULATION / UNSUPPORTED) are surfaced, never hidden.
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Factory, FlaskConical, Gavel, Play, RefreshCw, Scale, ShieldQuestion } from "lucide-react";
+import { Factory, FlaskConical, Gavel, Play, RefreshCw, Scale, ShieldQuestion, Cpu, TrendingUp, ServerCog, Boxes } from "lucide-react";
 import { Chip, GenesisProgress, HudPanel } from "../primitives";
 import { BenchmarkArena } from "./benchmark-arena";
 import { AgentArena } from "./arena";
@@ -44,7 +47,17 @@ const verdictChip = (v: string | null): "emerald" | "amber" | "rose" | "zinc" =>
   : v === "NO_GO" || v === "PASS" || v === "UNSUPPORTED" || v === "HALTED_NO_GO" || v === "FAILED" ? "rose"
   : v ? "amber" : "zinc";
 
+type Sub = "pipeline" | "models" | "growth" | "infra" | "ecosystem";
+const SUBS: { key: Sub; label: string; icon: React.ReactNode }[] = [
+  { key: "pipeline", label: "Pipeline", icon: <Factory className="w-3 h-3" /> },
+  { key: "models", label: "Models", icon: <Cpu className="w-3 h-3" /> },
+  { key: "growth", label: "Growth", icon: <TrendingUp className="w-3 h-3" /> },
+  { key: "infra", label: "Infra", icon: <ServerCog className="w-3 h-3" /> },
+  { key: "ecosystem", label: "Ecosystem", icon: <Boxes className="w-3 h-3" /> },
+];
+
 export function VentureIntelligence() {
+  const [sub, setSub] = useState<Sub>("pipeline");
   const [runs, setRuns] = useState<VentureRun[]>([]);
   const [boards, setBoards] = useState<BoardDecision[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
@@ -70,11 +83,13 @@ export function VentureIntelligence() {
     } catch { /* panels render empty */ } finally { setLoading(false); }
   }, []);
 
+  // Pipeline data only polls while the Pipeline sub-section is visible.
   useEffect(() => {
+    if (sub !== "pipeline") return;
     load();
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, sub]);
 
   const createCompany = async () => {
     setLaunching(true);
@@ -86,177 +101,180 @@ export function VentureIntelligence() {
 
   return (
     <div className="space-y-4">
-      {/* ===== LLM provider status (honest degradation) ===== */}
-      <ProviderStatus />
-
-      {/* ===== Multi-brain model router ===== */}
-      <ModelCommandCenter />
-
-      {/* ===== World scanner (discovery) ===== */}
-      <WorldScanner />
-
-      {/* ===== Autonomous pipeline runs ===== */}
-      <HudPanel
-        title="Autonomous Venture Pipeline"
-        subtitle="discover → aegis → venture → customers → board → build → operate"
-        icon={<Factory className="w-3.5 h-3.5" />}
-        accent="emerald"
-        right={
+      {/* ===== sub-navigation — only the active group mounts (bounds concurrent polling) ===== */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {SUBS.map((s) => (
           <button
-            onClick={createCompany}
-            disabled={launching}
-            className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+            key={s.key}
+            onClick={() => setSub(s.key)}
+            className={`flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded border transition-colors ${sub === s.key ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300" : "border-zinc-700/60 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"}`}
           >
-            <Play className="w-3 h-3" /> {launching ? "launching…" : "create company (no idea)"}
+            {s.icon} {s.label}
           </button>
-        }
-      >
-        {loading ? <Empty text="loading…" /> : runs.length === 0 ? <Empty text="no runs yet — press CREATE COMPANY" /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full font-mono text-[10px]">
-              <thead>
-                <tr className="text-zinc-500 uppercase tracking-wider text-left">
-                  <th className="py-1.5 pr-3">run</th><th className="pr-3">opportunity</th><th className="pr-3">venture</th>
-                  <th className="pr-3">truth</th><th className="pr-3">customer (sim)</th><th className="pr-3">board</th><th className="pr-3">outcome</th><th>mode</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((r) => (
-                  <tr key={r.runId} className="border-t border-emerald-500/10 text-zinc-300">
-                    <td className="py-1.5 pr-3 text-emerald-400">{r.runId}</td>
-                    <td className="pr-3 max-w-[220px] truncate" title={r.opportunityTitle ?? undefined}>{r.opportunityTitle ?? r.focus ?? "—"}</td>
-                    <td className="pr-3">{r.ventureScore}/100 <span className="text-zinc-500">{r.ventureVerdict}</span></td>
-                    <td className="pr-3"><span className={r.truthScore < 25 ? "text-rose-400" : r.truthScore < 60 ? "text-amber-400" : "text-emerald-400"}>{r.truthScore}%</span></td>
-                    <td className="pr-3">{r.customerRealityScore}/100 <span className="text-zinc-500">({r.buyRate}% buy)</span></td>
-                    <td className="pr-3"><Chip variant={verdictChip(r.boardVerdict)}>{r.boardVerdict ?? "—"} {r.boardConfidence ? `${r.boardConfidence}%` : ""}</Chip></td>
-                    <td className="pr-3"><Chip variant={verdictChip(r.status)}>{r.status}</Chip></td>
-                    <td><Chip variant={r.mode === "HEURISTIC" ? "amber" : "cyan"}>{r.mode}</Chip></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </HudPanel>
-
-      {/* ===== The four gates ===== */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <HudPanel title="AEGIS Truth Engine" subtitle="no unsupported confidence" icon={<ShieldQuestion className="w-3.5 h-3.5" />} accent="cyan">
-          {claims.length === 0 ? <Empty text="no claims recorded" /> : (
-            <ul className="space-y-2">
-              {claims.map((c) => (
-                <li key={c.claimId} className="font-mono text-[10px] text-zinc-300 flex items-center gap-2">
-                  <Chip variant={verdictChip(c.verdict)}>{c.verdict}</Chip>
-                  <span className="flex-1 truncate" title={c.statement}>{c.statement}</span>
-                  <span className="text-zinc-500 shrink-0">{c.truthScore}% · {c.supportCount}↑/{c.contradictCount}↓</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </HudPanel>
-
-        <HudPanel title="Venture Analyst" subtitle="judge like a VC — VENTURE_SCORE" icon={<Scale className="w-3.5 h-3.5" />} accent="violet">
-          {analyses.length === 0 ? <Empty text="no analyses yet" /> : (
-            <ul className="space-y-2.5">
-              {analyses.map((a) => (
-                <li key={a.analysisId} className="font-mono text-[10px] text-zinc-300">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-violet-300">{a.analysisId}</span>
-                    <span className="flex-1 truncate" title={a.subject}>{a.subject}</span>
-                    <Chip variant={verdictChip(a.verdict)}>{a.verdict}</Chip>
-                    <Chip variant={a.mode === "HEURISTIC" ? "amber" : "cyan"}>{a.mode}</Chip>
-                  </div>
-                  <GenesisProgress value={a.ventureScore} accent="violet" />
-                </li>
-              ))}
-            </ul>
-          )}
-        </HudPanel>
-
-        <HudPanel title="Customer Simulator" subtitle="SIMULATION — procedurally generated personas, not real users" icon={<FlaskConical className="w-3.5 h-3.5" />} accent="amber">
-          {sims.length === 0 ? <Empty text="no simulations yet" /> : (
-            <ul className="space-y-2">
-              {sims.map((s) => (
-                <li key={s.simulationId} className="font-mono text-[10px] text-zinc-300 flex items-center gap-2">
-                  <span className="text-amber-300">{s.simulationId}</span>
-                  <span className="flex-1 truncate" title={s.subject}>{s.subject}</span>
-                  <span className="text-zinc-400">{s.personaCount}p · {s.buyRate}% buy</span>
-                  <span className="text-amber-400">{s.realityScore}/100</span>
-                  <Chip variant="amber">SIMULATION</Chip>
-                </li>
-              ))}
-            </ul>
-          )}
-        </HudPanel>
-
-        <HudPanel title="AI Boardroom" subtitle="nine seats · no silent decisions" icon={<Gavel className="w-3.5 h-3.5" />} accent="rose">
-          {boards.length === 0 ? <Empty text="no board decisions yet" /> : (
-            <ul className="space-y-2.5">
-              {boards.map((b) => (
-                <li key={b.decisionId} className="font-mono text-[10px] text-zinc-300">
-                  <div className="flex items-center gap-2">
-                    <Chip variant={verdictChip(b.verdict)}>{b.verdict} {b.confidence}%</Chip>
-                    <span className="flex-1 truncate" title={b.topic}>{b.topic}</span>
-                    <span className="text-zinc-500 shrink-0">{b.tally?.GO ?? 0}GO/{b.tally?.NO_GO ?? 0}NO/{b.tally?.ABSTAIN ?? 0}AB</span>
-                  </div>
-                  <div className="text-zinc-500 truncate mt-0.5" title={b.synthesis}>{b.synthesis}</div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </HudPanel>
+        ))}
       </div>
 
-      {/* ===== Demand matching ===== */}
-      <DemandGraph />
+      {sub === "pipeline" && (
+        <div className="space-y-4">
+          {/* ===== World scanner (discovery) ===== */}
+          <WorldScanner />
 
-      {/* ===== Customer acquisition (V10 Module 2) ===== */}
-      <Acquisition />
+          {/* ===== Autonomous pipeline runs ===== */}
+          <HudPanel
+            title="Autonomous Venture Pipeline"
+            subtitle="discover → aegis → venture → customers → board → build → operate"
+            icon={<Factory className="w-3.5 h-3.5" />}
+            accent="emerald"
+            right={
+              <button
+                onClick={createCompany}
+                disabled={launching}
+                className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+              >
+                <Play className="w-3 h-3" /> {launching ? "launching…" : "create company (no idea)"}
+              </button>
+            }
+          >
+            {loading ? <Empty text="loading…" /> : runs.length === 0 ? <Empty text="no runs yet — press CREATE COMPANY" /> : (
+              <div className="overflow-x-auto">
+                <table className="w-full font-mono text-[10px]">
+                  <thead>
+                    <tr className="text-zinc-500 uppercase tracking-wider text-left">
+                      <th className="py-1.5 pr-3">run</th><th className="pr-3">opportunity</th><th className="pr-3">venture</th>
+                      <th className="pr-3">truth</th><th className="pr-3">customer (sim)</th><th className="pr-3">board</th><th className="pr-3">outcome</th><th>mode</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runs.map((r) => (
+                      <tr key={r.runId} className="border-t border-emerald-500/10 text-zinc-300">
+                        <td className="py-1.5 pr-3 text-emerald-400">{r.runId}</td>
+                        <td className="pr-3 max-w-[220px] truncate" title={r.opportunityTitle ?? undefined}>{r.opportunityTitle ?? r.focus ?? "—"}</td>
+                        <td className="pr-3">{r.ventureScore}/100 <span className="text-zinc-500">{r.ventureVerdict}</span></td>
+                        <td className="pr-3"><span className={r.truthScore < 25 ? "text-rose-400" : r.truthScore < 60 ? "text-amber-400" : "text-emerald-400"}>{r.truthScore}%</span></td>
+                        <td className="pr-3">{r.customerRealityScore}/100 <span className="text-zinc-500">({r.buyRate}% buy)</span></td>
+                        <td className="pr-3"><Chip variant={verdictChip(r.boardVerdict)}>{r.boardVerdict ?? "—"} {r.boardConfidence ? `${r.boardConfidence}%` : ""}</Chip></td>
+                        <td className="pr-3"><Chip variant={verdictChip(r.status)}>{r.status}</Chip></td>
+                        <td><Chip variant={r.mode === "HEURISTIC" ? "amber" : "cyan"}>{r.mode}</Chip></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </HudPanel>
 
-      {/* ===== Revenue execution (V10 Module 3) ===== */}
-      <Revenue />
+          {/* ===== The four gates ===== */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <HudPanel title="AEGIS Truth Engine" subtitle="no unsupported confidence" icon={<ShieldQuestion className="w-3.5 h-3.5" />} accent="cyan">
+              {claims.length === 0 ? <Empty text="no claims recorded" /> : (
+                <ul className="space-y-2">
+                  {claims.map((c) => (
+                    <li key={c.claimId} className="font-mono text-[10px] text-zinc-300 flex items-center gap-2">
+                      <Chip variant={verdictChip(c.verdict)}>{c.verdict}</Chip>
+                      <span className="flex-1 truncate" title={c.statement}>{c.statement}</span>
+                      <span className="text-zinc-500 shrink-0">{c.truthScore}% · {c.supportCount}↑/{c.contradictCount}↓</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </HudPanel>
 
-      {/* ===== Deployment cloud (V10 Module 4) ===== */}
-      <DeploymentCloud />
+            <HudPanel title="Venture Analyst" subtitle="judge like a VC — VENTURE_SCORE" icon={<Scale className="w-3.5 h-3.5" />} accent="violet">
+              {analyses.length === 0 ? <Empty text="no analyses yet" /> : (
+                <ul className="space-y-2.5">
+                  {analyses.map((a) => (
+                    <li key={a.analysisId} className="font-mono text-[10px] text-zinc-300">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-violet-300">{a.analysisId}</span>
+                        <span className="flex-1 truncate" title={a.subject}>{a.subject}</span>
+                        <Chip variant={verdictChip(a.verdict)}>{a.verdict}</Chip>
+                        <Chip variant={a.mode === "HEURISTIC" ? "amber" : "cyan"}>{a.mode}</Chip>
+                      </div>
+                      <GenesisProgress value={a.ventureScore} accent="violet" />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </HudPanel>
 
-      {/* ===== Enterprise observability (V10 Module 5) ===== */}
-      <Observability />
+            <HudPanel title="Customer Simulator" subtitle="SIMULATION — procedurally generated personas, not real users" icon={<FlaskConical className="w-3.5 h-3.5" />} accent="amber">
+              {sims.length === 0 ? <Empty text="no simulations yet" /> : (
+                <ul className="space-y-2">
+                  {sims.map((s) => (
+                    <li key={s.simulationId} className="font-mono text-[10px] text-zinc-300 flex items-center gap-2">
+                      <span className="text-amber-300">{s.simulationId}</span>
+                      <span className="flex-1 truncate" title={s.subject}>{s.subject}</span>
+                      <span className="text-zinc-400">{s.personaCount}p · {s.buyRate}% buy</span>
+                      <span className="text-amber-400">{s.realityScore}/100</span>
+                      <Chip variant="amber">SIMULATION</Chip>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </HudPanel>
 
-      {/* ===== Enterprise security (V10 Module 6) ===== */}
-      <SecurityEngine />
+            <HudPanel title="AI Boardroom" subtitle="nine seats · no silent decisions" icon={<Gavel className="w-3.5 h-3.5" />} accent="rose">
+              {boards.length === 0 ? <Empty text="no board decisions yet" /> : (
+                <ul className="space-y-2.5">
+                  {boards.map((b) => (
+                    <li key={b.decisionId} className="font-mono text-[10px] text-zinc-300">
+                      <div className="flex items-center gap-2">
+                        <Chip variant={verdictChip(b.verdict)}>{b.verdict} {b.confidence}%</Chip>
+                        <span className="flex-1 truncate" title={b.topic}>{b.topic}</span>
+                        <span className="text-zinc-500 shrink-0">{b.tally?.GO ?? 0}GO/{b.tally?.NO_GO ?? 0}NO/{b.tally?.ABSTAIN ?? 0}AB</span>
+                      </div>
+                      <div className="text-zinc-500 truncate mt-0.5" title={b.synthesis}>{b.synthesis}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </HudPanel>
+          </div>
 
-      {/* ===== Customer success (V10 Module 7) ===== */}
-      <CustomerSuccess />
+          {/* ===== Demand matching ===== */}
+          <DemandGraph />
+        </div>
+      )}
 
-      {/* ===== Economic brain (V10 Module 8) ===== */}
-      <Economics />
+      {sub === "models" && (
+        <div className="space-y-4">
+          <ProviderStatus />
+          <ModelCommandCenter />
+        </div>
+      )}
 
-      {/* ===== Company OS (V10 Module 9) ===== */}
-      <CompanyOS />
+      {sub === "growth" && (
+        <div className="space-y-4">
+          <Acquisition />
+          <Revenue />
+          <CustomerSuccess />
+          <Economics />
+          <CompanyOS />
+        </div>
+      )}
 
-      {/* ===== Real action connectors (V10 Module 10) ===== */}
-      <ActionConnectors />
+      {sub === "infra" && (
+        <div className="space-y-4">
+          <DeploymentCloud />
+          <Observability />
+          <SecurityEngine />
+          <ActionConnectors />
+          <Enterprise />
+          <Performance />
+        </div>
+      )}
 
-      {/* ===== Enterprise hardening (V10 Module 11) ===== */}
-      <Enterprise />
-
-      {/* ===== Performance & scale (V10 Module 12) ===== */}
-      <Performance />
-
-      {/* ===== App marketplace ===== */}
-      <Marketplace />
-
-      {/* ===== Plugin / skill marketplace ===== */}
-      <Plugins />
-
-      {/* ===== Agent competition ===== */}
-      <AgentArena />
-
-      {/* ===== Self-measurement ===== */}
-      <BenchmarkArena />
+      {sub === "ecosystem" && (
+        <div className="space-y-4">
+          <Marketplace />
+          <Plugins />
+          <AgentArena />
+          <BenchmarkArena />
+        </div>
+      )}
 
       <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-wider text-zinc-600">
-        <RefreshCw className="w-3 h-3" /> auto-refreshes every 15s · amber chips = heuristic/simulated (no LLM key) — never presented as real data
+        <RefreshCw className="w-3 h-3" /> only the active section polls · amber chips = heuristic/simulated (no LLM key) — never presented as real data
       </div>
     </div>
   );
