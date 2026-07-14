@@ -39,5 +39,5 @@ Final Execution Layer. Completes the V10 program: 12 additive modules over the e
 - Every output is labeled `REAL` / `SIMULATION` / `HEURISTIC` / `ESTIMATED` / `UNKNOWN`. Connectors report `VERIFIED` or `UNCONFIGURED`; figures with no real data read `$0`/`UNKNOWN` by design.
 - Deploy requires `DATABASE_URL`. Optional operator config (honestly `UNCONFIGURED` until set): `GENESIS_DB_ENCRYPTION_KEY`, `GENESIS_BACKUP_TARGET`, provider API keys, `GENESIS_AUTH_REQUIRED=1`.
 
-[v10.0.1]: https://github.com/amitchahar509-collab/shadow-genesis-os/releases/tag/v10.0.1
-[v10.0.0]: https://github.com/amitchahar509-collab/shadow-genesis-os/releases/tag/v10.0.0
+[v10.0.1]: https://github.com/amitchahar509-collab/shadow-genesis-os/tree/v10.0.1
+[v10.0.0]: https://github.com/amitchahar509-collab/shadow-genesis-os/tree/v10.0.0
