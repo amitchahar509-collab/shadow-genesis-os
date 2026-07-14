@@ -52,3 +52,24 @@ jobs:
 
       - name: Build
         run: bun run build
+
+  # Verify the production Docker image actually builds (BuildKit → heredoc COPY works).
+  # This executes the exact `docker build -t genesis .` on a Docker-capable runner,
+  # turning "verified by inspection" into "verified by execution".
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: genesis:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
