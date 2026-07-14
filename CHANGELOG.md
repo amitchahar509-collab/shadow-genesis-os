@@ -10,6 +10,8 @@ Proprietary — private repository. No public distribution.
 - Added the `v10.1.0` CHANGELOG entry (application layer) and wired tag-synced version links (`/tree/<tag>`).
 - Docs-only patch on top of v10.1.0 — no code, dependency, or schema changes. CI `verify` + `docker` jobs green on `fbfe861`.
 
+> Note: the immutable `v10.1.1` release tag points to the preceding documentation commit (`fbfe861`); this changelog entry was added in the commit immediately afterward. The tag is intentionally not moved, to preserve tag immutability.
+
 ## [v10.1.0] — 2026-07-14
 
 Application layer — a self-serve app so a non-technical operator can configure and run Genesis without the terminal. Additive only; no new business modules, no architecture changes.
