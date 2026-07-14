@@ -61,3 +61,6 @@ tool-results/
 
 # CI ephemeral SQLite
 db/ci*.db
+
+# Operator app config (secrets set via the Settings UI — never commit)
+.genesis-config.json

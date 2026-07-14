@@ -150,6 +150,10 @@ export function GenesisShell() {
                 UPTIME <UptimeCounter startIso={bootEpoch} className="text-zinc-400" />
               </span>
             </div>
+            <nav className="flex items-center gap-2">
+              <a href="/setup" title="Setup Wizard" className="font-mono text-[10px] uppercase tracking-wider px-2 py-1 rounded border border-emerald-500/25 text-emerald-300/80 hover:bg-emerald-500/10">Setup</a>
+              <a href="/settings" title="Settings" className="font-mono text-[10px] uppercase tracking-wider px-2 py-1 rounded border border-emerald-500/25 text-emerald-300/80 hover:bg-emerald-500/10">Settings</a>
+            </nav>
           </div>
         </div>
       </header>

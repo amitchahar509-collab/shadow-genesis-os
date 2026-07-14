@@ -18,7 +18,8 @@ services:
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      # bun is guaranteed in the base image; the slim runtime has no curl.
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3

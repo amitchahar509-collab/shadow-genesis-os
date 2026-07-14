@@ -1040,3 +1040,23 @@ Verification: tsc 0; eslint 0; 369/369 (was 348) on committed AND fresh CI-style
 *** V10 COMPLETE: all 12 modules production-ready, 369 tests green on both dbs. ***
 
 Commit: cycle 49 committed on branch main.
+
+---
+Task ID: 52
+Agent: Claude Code (Opus 4.8) - cycle 50: V10.1 application layer - Setup Wizard + Settings + operator readiness (no CLI required)
+
+Task: turn Genesis into a self-serve app a non-technical operator can configure without the terminal. Additive only; no new business modules, no redesign.
+
+Work Log:
+- app-config.ts: operator config store. Allowlisted keys only (no arbitrary env injection - PATH/NODE_OPTIONS/__proto__ rejected); grouped by AI Providers/Deployment/Action Connectors/Revenue/Enterprise. setConfigKeys writes a GITIGNORED .genesis-config.json AND applies to process.env immediately (provider/connector checks read env at call time, so keys take effect with no restart); getConfigStatus masks secrets and NEVER returns raw; loadAppConfig applies saved keys on startup, env-wins.
+- setup-check.ts: setupReadiness() - REAL detection reusing existing health fns (validateEnv, availableProviders, action/cloud/revenue connector health) + a Bun.spawn docker probe. ready = database ok (the only hard requirement); llm/docker optional and never block.
+- APIs (additive): GET/POST /api/genesis/setup (readiness + init-db via real prisma db push), GET/POST /api/genesis/settings (masked config + live provider health; ADMIN-guarded set). instrumentation.ts loads saved config on server start (node runtime).
+- UI: /setup 6-step Setup Wizard (Welcome -> Environment -> Database -> AI Providers -> Verify -> Launch) driven by the real endpoints; /settings grouped provider/connector config with masked values + live status; Setup/Settings links added to the dashboard header.
+- One-command run: fixed docker-compose.yml healthcheck (curl -> bun; slim image has no curl, same bug fixed earlier in the Dockerfile). `docker compose up` builds, inits the db on a persistent volume, and serves the Wizard at /setup.
+- Tests (app-setup.test.ts, 7): allowlist enforcement; set applies-in-process + persists + rejects unknown; getConfigStatus masks + never leaks raw; empty clears; loadAppConfig env-wins; config groups cover the provider surface; setupReadiness reflects real state + no secret leak.
+
+Verification: tsc 0; eslint 0; 377/377 (was 370) on committed AND fresh CI-style db. next build compiles all 84 pages incl. /setup /settings /api/genesis/setup|settings (Windows-only standalone-copy EINVAL is the known junction artifact; Linux/CI builds clean). LIVE (backend path the UI calls): readiness ready=true with real runtime/db/provider detection (2 LLM providers from .env, docker optional-warn); settings set GITHUB_TOKEN -> masked ghp_****23, in-effect immediately, raw NOT leaked in status JSON, clear -> unset. .genesis-config.json git-ignored (verified). Browser preview blocked by the documented Windows Downloads-junction harness path bug (affects the whole app incl. /, not this code) - pages verified via build + direct endpoint execution.
+
+Honest boundary: a code-signed double-click native installer (Electron .exe/.dmg) needs a packaging/signing build pipeline not available here and was NOT fabricated. The real one-command install is `docker compose up`; the web Setup Wizard handles configuration from there.
+
+Commit: cycle 50 committed on branch main.
