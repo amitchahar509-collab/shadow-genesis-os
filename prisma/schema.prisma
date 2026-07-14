@@ -360,6 +360,49 @@ model SecurityFinding {
   resolvedAt  DateTime?
 }
 
+// ============ V10 MODULE 12 — PERFORMANCE & SCALE ============
+// Persistent (L2) cache for DETERMINISTIC outputs only + a durable task queue.
+// Never caches approval/security/external/payment state (enforced in code).
+model CacheEntry {
+  id         String   @id @default(cuid())
+  cacheKey   String   @unique // namespace:hash
+  namespace  String
+  value      String   // JSON — deterministic computed output only
+  tags       String   @default("[]") // JSON string[] — for tag invalidation
+  hits       Int      @default(0)
+  sizeBytes  Int      @default(0)
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  lastHitAt  DateTime?
+
+  @@index([namespace])
+  @@index([expiresAt])
+}
+
+model PerfTask {
+  id           String   @id @default(cuid())
+  taskId       String   @unique // PT-000001
+  queue        String   @default("default")
+  kind         String   // logical work type
+  priority     Int      @default(5) // 1 (highest) .. 9 (lowest)
+  status       String   @default("READY") // READY | RUNNING | WAITING | RETRY | FAILED | DEAD_LETTER | COMPLETED
+  dependsOn    String   @default("[]") // JSON string[] of taskIds — WAITING until all COMPLETED
+  payload      String   @default("{}")
+  dedupeKey    String? // content hash — duplicate detection
+  attempts     Int      @default(0)
+  maxAttempts  Int      @default(3)
+  result       String? // JSON summary
+  error        String?
+  latencyMs    Int      @default(0)
+  enqueuedAt   DateTime @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+
+  @@index([queue])
+  @@index([status])
+  @@index([dedupeKey])
+}
+
 // ============ V10 MODULE 11 — ENTERPRISE HARDENING ============
 // Metadata + orchestration over the EXISTING auth/approval/audit systems. Backups
 // are honest: without storage config they are UNCONFIGURED — never a fabricated

@@ -25,6 +25,7 @@ import { Economics } from "./economics";
 import { CompanyOS } from "./company-os";
 import { ActionConnectors } from "./action-connectors";
 import { Enterprise } from "./enterprise";
+import { Performance } from "./performance";
 import { ModelCommandCenter } from "./model-command";
 
 interface VentureRun {
@@ -238,6 +239,9 @@ export function VentureIntelligence() {
 
       {/* ===== Enterprise hardening (V10 Module 11) ===== */}
       <Enterprise />
+
+      {/* ===== Performance & scale (V10 Module 12) ===== */}
+      <Performance />
 
       {/* ===== App marketplace ===== */}
       <Marketplace />

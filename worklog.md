@@ -1017,3 +1017,26 @@ Work Log:
 Verification: tsc 0; eslint 0; 348/348 (was 334) on committed AND fresh CI-style db. LIVE over real state: health Security 100 / Isolation 100 (4/4) / Compliance 70 (7/10 SOC2) / Encryption 80 / Recovery 20 (UNCONFIGURED, honest) / Reliability 2 (39/1629 real LLM calls ok - reflects the real openrouter-402 history) = overall 62; encryption at-rest honestly UNCONFIGURED; SOC2 70% readiness with per-control evidence + "NOT a certification" disclaimer; backup UNCONFIGURED without storage then COMPLETED 88-row manifest + checksum with it; GDPR export approval-gated (pre-approval refused, real manifest after); RBAC OWNER9/ADMIN6/MEMBER2/VIEWER1. Demo purged.
 
 Commit: cycle 48 committed on branch main.
+
+---
+Task ID: 51
+Agent: Claude Code (Fable 5) - cycle 49: V10 Module 12 (FINAL) - Performance & Scale Engine (measured, never fabricated)
+
+Task: V10 Module 12 - the missing optimization layers over the existing systems: multi-level cache, queue manager, dependency-aware parallel scheduler, token/cost/model optimization, duplicate detection, benchmark engine. Every gain MEASURED; never fabricate a speedup.
+
+Phase 0 (reuse audit): router (estimateCost/resolveChainDynamic/Fallback 2.0/freeSetCache 60s), model-registry (rankModels/recordModelOutcome EWMA/effectiveScore), LlmUsage ledger (cost/tokens/latency/retries/fallbackDepth), telemetry (Module 5 latency percentiles), benchmark/model-arena, base-agent EX ratchet. Module 12 adds the MISSING layers only - no new routing/cost systems.
+
+Work Log:
+- Schema (+2): CacheEntry (L2 persistent, deterministic-only, tags/TTL) + PerfTask (durable queue: 7 states, priority, deps, dedupeKey).
+- performance/cache.ts: multi-level cache - L1 in-process LRU (bounded 500, real eviction) + L2 persistent DB; cacheGet(L1->L2 promote), cacheSet, cached(get-or-compute), invalidate/invalidateNamespace/invalidateByTag, pruneExpired, real hit/miss stats. FORBIDDEN namespaces (approval|security|payment|external|mutation|secret|connector) REFUSED at set - deterministic outputs only, per the rules.
+- performance/scheduler.ts: planParallel (Kahn topological layering + REAL cycle detection/throw); runScheduled (layer-by-layer, tasks within a layer in parallel bounded by concurrency, measures REAL wall time vs measured serial sum -> observed speedup; automatic cancellation via signal). Never touches approval gates (runner is the caller's fn).
+- performance/optimize.ts: compressPrompt (whitespace collapse + consecutive-dup-line drop + blank-run squeeze -> REAL measured token before/after, meaning intact); optimizeModelChoice (reuses rankModels - cheapest model within 15% of top effectiveScore, measured cost delta - returns 0 saving honestly when top IS cheapest); estimateTokens; dedupeKey (sha256).
+- performance/index.ts: QueueManager (enqueue w/ duplicate detection, dequeue by priority+FIFO w/ atomic claim, completeTask+reconcileDeps dependency gating, failTask RETRY->DEAD_LETTER, cancelTask, queueStatus); performanceBenchmark (3 REAL measured micro-benchmarks: cache cold-vs-warm, serial-vs-parallel, prompt compression); performanceOverview (cache/queue/model-opt + real 7d ledger rollup).
+- API /api/genesis/performance (guardWrite): enqueue|dequeue|complete|fail|cancel|reconcile|compress|invalidate + GET overview/benchmark/queue/optimize. Dashboard Performance Center panel (cache/queue stats, 7-state queue monitor, model-opt, run-benchmark button w/ before/after table) wired into Venture Intelligence.
+- Tests (performance.test.ts, 21): cache L1/L2 + forbidden-namespace refusal + real hit ratio + key/namespace/tag invalidation + TTL expiry; planParallel layering + cycle throw; runScheduled MEASURED speedup + dep ordering + cancellation; queue state machine + dep gating + priority + retry->dead-letter + duplicate detection + cancel + status; compressPrompt real token cut; optimizeModelChoice cost delta; dedupeKey determinism; performanceBenchmark measured before/after.
+
+Verification: tsc 0; eslint 0; 369/369 (was 348) on committed AND fresh CI-style db. LIVE measured: cache cold 127.49ms -> warm 0.29ms; serial 398ms -> parallel 40ms = 9.86x (10 tasks); dependency graph 4 layers (scans parallel then build->test->deploy serial); prompt compression 488->367 tokens (25%); model optimization 0% in free mode (top model already $0 - HONEST, no fabricated saving); real 7d ledger 1629 calls/$0.48/91 retries/1606 fallback. Bench cache residue self-cleaned.
+
+*** V10 COMPLETE: all 12 modules production-ready, 369 tests green on both dbs. ***
+
+Commit: cycle 49 committed on branch main.
