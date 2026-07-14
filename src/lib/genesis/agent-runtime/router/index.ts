@@ -98,6 +98,15 @@ export function estimateCost(model: string, promptTokens: number, completionToke
   return Math.round(((promptTokens / 1e6) * p.in + (completionTokens / 1e6) * p.out) * 1e6) / 1e6;
 }
 
+/** Transport-safe token trim (V10 Module 12 optimizer, applied on the real LLM
+ *  hot path): strips trailing whitespace and collapses 3+ blank lines. NEVER
+ *  touches intra-line spacing, so code/JSON/indentation survive byte-for-byte —
+ *  a provably lossless token saving on every call. */
+export function trimForTransport(text: string): string {
+  if (!text) return text;
+  return text.replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n");
+}
+
 /** Pre-call expected cost (cost intelligence): ~4 chars/token prompt + maxTokens ceiling. */
 export function expectedCost(model: string, opts: LlmOptions): number {
   const promptTokens = Math.ceil((opts.system.length + opts.user.length) / 4);
@@ -255,6 +264,9 @@ export async function callLlmRouted(
   if (!ctx._invoke && llmDisabled()) {
     return { ok: false, text: "", error: "LLM_DISABLED_IN_TESTS: inject _invoke or set GENESIS_TEST_ALLOW_LLM=1", durationMs: 0, capability, costUsd: 0, fallbackDepth: 0, importance };
   }
+  // Module 12 token optimization on the real hot path — lossless whitespace trim
+  // so every provider call sends fewer tokens without altering meaning.
+  opts = { ...opts, system: trimForTransport(opts.system), user: trimForTransport(opts.user) };
   const chain = await resolveChainDynamic(ctx.agent, importance, ctx.preferModels);
   const invoke = ctx._invoke ?? realInvoke;
   const timeoutMs = opts.timeoutMs ?? 8_000;

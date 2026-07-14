@@ -45,9 +45,9 @@ RUN mkdir -p /app/data
 # Expose ports
 EXPOSE 3000 3030
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+# Health check — use bun (guaranteed in the base image); the slim image has no curl.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD bun -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Start both the Next.js app and the activity service
 COPY <<'EOF' /app/start.sh

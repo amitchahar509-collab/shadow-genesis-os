@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import {
   cacheGet, cacheSet, cached, isCacheable, invalidate, invalidateNamespace, invalidateByTag,
   cacheStats, resetCacheStats, clearL1, pruneExpired,
-  planParallel, runScheduled, compressPrompt, optimizeModelChoice, dedupeKey,
+  planParallel, runScheduled, compressPrompt, optimizeModelChoice, dedupeKey, trimForTransport,
   enqueue, dequeue, completeTask, failTask, cancelTask, reconcileDeps, queueStatus, performanceBenchmark,
 } from "@/lib/genesis/agent-runtime/performance";
 
@@ -182,6 +182,20 @@ test("optimizeModelChoice reuses registry ranking and measures the cost delta", 
     expect(opt.optimized.combinedPricePer1M).toBeLessThanOrEqual(opt.baseline!.combinedPricePer1M);
     expect(opt.costSavedPer1M).toBeGreaterThanOrEqual(0); // never a negative/fabricated saving
   }
+});
+
+test("trimForTransport is LOSSLESS of content (hot-path token trim) — code/JSON survive", () => {
+  // trailing whitespace + 3+ blank lines are removed; intra-line spacing untouched
+  expect(trimForTransport("hello   \n\n\n\nworld  ")).toBe("hello\n\nworld");
+  // Python indentation and JSON spacing MUST survive byte-for-byte
+  const code = 'def f():\n    return {\n        "a":  1,\n        "b": 2\n    }';
+  expect(trimForTransport(code)).toBe(code); // no intra-line change → identical
+  // real token reduction on padded text, meaning intact
+  const padded = "line one   \nline two\t\t\n\n\n\n\nline three";
+  const out = trimForTransport(padded);
+  expect(out.length).toBeLessThan(padded.length);
+  expect(out).toContain("line one");
+  expect(out).toContain("line three");
 });
 
 test("dedupeKey is deterministic for identical payloads", () => {

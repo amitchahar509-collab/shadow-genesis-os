@@ -39,6 +39,10 @@ export function compressPrompt(prompt: string): CompressionResult {
   return { before, after, tokensBefore, tokensAfter, tokensSaved, savedPct: tokensBefore > 0 ? Math.round((tokensSaved / tokensBefore) * 100) : 0, text };
 }
 
+// trimForTransport lives in the router (its consumer) to avoid an import cycle;
+// re-exported here so it's part of the performance optimizer's public surface.
+export { trimForTransport } from "../router";
+
 export interface ModelChoice { model: string; provider: string; combinedPricePer1M: number; score: number }
 export interface ModelOptimization { baseline: ModelChoice | null; optimized: ModelChoice | null; costSavedPer1M: number; savedPct: number; note: string }
 
