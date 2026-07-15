@@ -383,9 +383,33 @@ function MissionsView({ missions, onRefresh }: { missions: any[]; onRefresh: () 
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-mono text-[11px] text-emerald-400">{m.missionId}</span>
                 <span className={cn("font-mono text-[9px] uppercase px-1.5 py-0.5 rounded", m.status === "RUNNING" ? "bg-amber-500/20 text-amber-400" : m.status === "COMPLETE" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>{m.status}</span>
+                {m.status === "RUNNING" && m.phase && (
+                  <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/25">
+                    {m.phase === "PLANNING" ? "planning" : m.phase === "BOARD_REVIEW" ? "board review" : m.phase === "BUILDING" ? "building" : m.phase.toLowerCase()}
+                  </span>
+                )}
                 <span className="font-mono text-[9px] text-zinc-500 ml-auto">{new Date(m.startedAt).toLocaleTimeString()}</span>
               </div>
               <div className="font-mono text-[12px] text-zinc-200">{m.goal}</div>
+              {m.status === "RUNNING" && m.progress && (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2 font-mono text-[9px] text-zinc-400 mb-1">
+                    <span className="text-emerald-400">{m.progress.done}/{m.progress.total} done</span>
+                    {m.progress.inProgress > 0 && <span className="text-amber-400">{m.progress.inProgress} running</span>}
+                    {m.progress.failed > 0 && <span className="text-rose-400">{m.progress.failed} failed</span>}
+                    <span className="ml-auto text-zinc-500">{m.progress.pct}%</span>
+                  </div>
+                  <div className="h-1 rounded bg-zinc-800 overflow-hidden"><div className="h-full bg-emerald-500/70 transition-all" style={{ width: `${m.progress.pct}%` }} /></div>
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-1">
+                    {m.progress.tasks.map((t: any) => (
+                      <div key={t.taskId} className="border border-zinc-700/50 rounded p-1.5 bg-black/20" title={t.title}>
+                        <div className="font-mono text-[8px] text-zinc-500 uppercase truncate">{t.ownerAgent}</div>
+                        <div className={cn("font-mono text-[9px]", t.status === "DONE" ? "text-emerald-400" : t.status === "FAILED" ? "text-rose-400" : t.status === "IN_PROGRESS" || t.status === "REVIEW" ? "text-amber-400" : "text-zinc-500")}>{t.status}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {m.result?.taskResults && (
                 <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-1">
                   {m.result.taskResults.map((tr: any, i: number) => (

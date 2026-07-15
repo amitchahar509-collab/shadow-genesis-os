@@ -56,6 +56,10 @@ export async function dispatchGoal(
   const startedAt = new Date();
   await reapOrphanedExecutions().catch(() => {});
   await emit(events.decision("ORCHESTRATOR", `dispatchGoal: ${goal.slice(0, 120)}`));
+  // Truthful live phase for the Missions UI (so a running mission never looks
+  // "frozen at 0/7" while the CEO plans or the board deliberates before build).
+  const setPhase = (p: string) => { if (opts?.missionId) { const h = missions.get(opts.missionId); if (h) h.phase = p; } };
+  setPhase("PLANNING");
   let taskIds: string[] = opts?.taskIds ?? [];
   let ceoExecution: AgentRunResult | undefined;
   if (!opts?.skipCeo && !taskIds.length) {
@@ -64,11 +68,16 @@ export async function dispatchGoal(
     taskIds = (ceoExecution.output.plan as { tasks: { taskId: string }[] }).tasks.map((t) => t.taskId);
   }
 
+  // Surface the mission's real tasks so the Missions UI can show LIVE progress
+  // while the pipeline runs (the handle otherwise has no result until completion).
+  if (opts?.missionId) { const h = missions.get(opts.missionId); if (h) h.taskIds = taskIds; }
+
   // AI Boardroom (V5 Phase 4): debate the decision before committing build effort.
   // Advisory by default — records the verdict and surfaces conditions/risks; only
   // halts the pipeline when the caller opts into enforcement AND the board says NO_GO.
   let boardDecision: BoardDecisionResult | undefined;
   if (opts?.board !== false) {
+    setPhase("BOARD_REVIEW");
     boardDecision = await conveneBoard({
       topic: goal.slice(0, 120),
       question: `Should Genesis commit build effort to: "${goal}"?`,
@@ -84,6 +93,7 @@ export async function dispatchGoal(
     }
   }
 
+  setPhase("BUILDING");
   const taskResults = await runPipeline(taskIds, opts?.projectId);
   const successCount = taskResults.filter((r) => r.status === "DONE").length;
   const failCount = taskResults.filter((r) => r.status === "FAILED").length;
@@ -181,15 +191,15 @@ async function runTaskWithRetry(taskId: string, maxRetries: number, projectId?: 
 
 function parseDeps(s: string): string[] { try { const v = JSON.parse(s); return Array.isArray(v) ? v.map(String) : []; } catch { return []; } }
 
-export interface MissionHandle { missionId: string; goal: string; projectId?: string; status: string; startedAt: Date; result?: DispatchResult; error?: string; }
+export interface MissionHandle { missionId: string; goal: string; projectId?: string; status: string; startedAt: Date; result?: DispatchResult; error?: string; taskIds?: string[]; phase?: string; }
 const missions = new Map<string, MissionHandle>();
 
 export function startMission(goal: string, projectId?: string): MissionHandle {
   const missionId = `M-${Date.now().toString(36)}`;
   const handle: MissionHandle = { missionId, goal, projectId, status: "RUNNING", startedAt: new Date() };
   missions.set(missionId, handle);
-  // Run in background
-  dispatchGoal(goal, { projectId })
+  // Run in background (pass missionId so dispatchGoal can attach live task ids)
+  dispatchGoal(goal, { projectId, missionId })
     .then((result) => { handle.status = "COMPLETE"; handle.result = result; })
     .catch((e) => { handle.status = "FAILED"; handle.error = e instanceof Error ? e.message : String(e); });
   return handle;
