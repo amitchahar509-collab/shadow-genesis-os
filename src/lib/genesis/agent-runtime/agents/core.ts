@@ -29,9 +29,34 @@ export class CeoAgent extends BaseAgent {
     }
 
     let nextNum = await nextTaskNumber();
+    // Remap the LLM's placeholder ids to global task ids. LLMs are not always
+    // self-consistent (tasks labeled T-A..T-E but dependencies written T-1..T-4),
+    // and an un-remapped dependency id can never complete → instant pipeline
+    // deadlock. So alias each task by every plausible placeholder for its
+    // POSITION (T-1 / T-A / 1 for the first task, …) and resolve deps through
+    // that; anything still unresolvable is dropped with a warning — a weaker
+    // ordering beats a guaranteed deadlock.
     const assignedIds = new Map<string, string>();
-    for (const t of plan.tasks) { const taskId = `T-${nextNum.toString().padStart(3, "0")}`; assignedIds.set(t.taskId, taskId); t.taskId = taskId; nextNum++; }
-    for (const t of plan.tasks) t.dependencies = t.dependencies.map((d) => assignedIds.get(d) ?? d);
+    plan.tasks.forEach((t, i) => {
+      const taskId = `T-${(nextNum + i).toString().padStart(3, "0")}`;
+      for (const alias of [t.taskId, `T-${i + 1}`, `T-${String.fromCharCode(65 + i)}`, `${i + 1}`]) {
+        if (alias && !assignedIds.has(alias)) assignedIds.set(alias, taskId);
+      }
+      t.taskId = taskId;
+    });
+    nextNum += plan.tasks.length;
+    for (const t of plan.tasks) {
+      const before = t.dependencies.length;
+      t.dependencies = t.dependencies
+        .map((d) => {
+          const hit = assignedIds.get(d);
+          if (hit) return hit;
+          const m = /(\d+)/.exec(d); // "task 2", "T2", "#2" → positional
+          return m ? plan.tasks[parseInt(m[1], 10) - 1]?.taskId : undefined;
+        })
+        .filter((d): d is string => Boolean(d) && d !== t.taskId);
+      if (t.dependencies.length < before) await ctx.emit({ action: "FALLBACK", detail: `dropped ${before - t.dependencies.length} unresolvable dependency id(s) on ${t.taskId}`, level: "WARNING" });
+    }
 
     for (const t of plan.tasks) {
       await db.genesisTask.create({ data: { taskId: t.taskId, title: t.title, description: t.description, ownerAgent: t.ownerAgent, department: t.department, priority: t.priority, status: "PENDING", dependencies: JSON.stringify(t.dependencies), expectedArtifact: t.expectedArtifact, validation: t.validation, estimatedHours: t.estimatedHours, } });

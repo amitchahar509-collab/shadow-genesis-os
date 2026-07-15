@@ -151,10 +151,26 @@ export async function runTask(taskId: string, projectId?: string) { return runTa
  * against empty sandboxes and succeeding vacuously.
  */
 export async function dependencyContext(dependencies: string): Promise<Record<string, unknown>> {
-  const deps = parseDeps(dependencies);
-  if (!deps.length) return {};
+  // Walk the TRANSITIVE dependency closure, not just direct deps: in a linear
+  // chain ARCHITECT → ENGINEERING → SECURITY → DEPLOYMENT the deploy step needs
+  // ENGINEERING's repoPath even though its only direct dep is SECURITY (which
+  // doesn't echo it). Outputs merge in execution order, so closer/later
+  // dependencies still override earlier ones on key collisions.
+  const closure: string[] = [];
+  const seen = new Set<string>();
+  let frontier = parseDeps(dependencies);
+  let guard = 0;
+  while (frontier.length && guard++ < 25) {
+    const batch = frontier.filter((d) => !seen.has(d));
+    if (!batch.length) break;
+    for (const d of batch) seen.add(d);
+    closure.push(...batch);
+    const rows = await db.genesisTask.findMany({ where: { taskId: { in: batch } }, select: { dependencies: true } });
+    frontier = rows.flatMap((r) => parseDeps(r.dependencies));
+  }
+  if (!closure.length) return {};
   const ctx: Record<string, unknown> = {};
-  const execs = await db.agentExecution.findMany({ where: { taskId: { in: deps }, status: "SUCCESS" }, orderBy: { createdAt: "asc" } });
+  const execs = await db.agentExecution.findMany({ where: { taskId: { in: closure }, status: "SUCCESS" }, orderBy: { createdAt: "asc" } });
   for (const e of execs) {
     try {
       const parsed = JSON.parse(e.result ?? "{}") as { output?: Record<string, unknown> };
