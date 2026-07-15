@@ -16,7 +16,7 @@
  */
 
 import { pickProvider, callLlm, type LlmProvider } from "../types";
-import { availableProviders, routingTable, usageSummary } from "../router";
+import { availableProviders, routingTableLive, providerHealthSnapshot, usageSummary } from "../router";
 import { premiumMode } from "../model-registry";
 
 const ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5";
@@ -51,16 +51,20 @@ export interface ProviderStatus {
   summary: string;
   llmGated: { gate: string; note: string; mode: "LLM" | "HEURISTIC" }[];
   procedural: { gate: string; note: string }[];
-  routing: ReturnType<typeof routingTable>;
+  routing: Awaited<ReturnType<typeof routingTableLive>>;
+  health: ReturnType<typeof providerHealthSnapshot>;
   hint: string;
 }
 
-export function getProviderStatus(): ProviderStatus {
+export async function getProviderStatus(): Promise<ProviderStatus> {
   const provider = pickProvider();
   const providers = [...availableProviders()] as LlmProvider[];
   const degraded = providers.length === 0;
   const model = provider === "anthropic" ? (process.env.GENESIS_LLM_MODEL ?? ANTHROPIC_DEFAULT_MODEL) : provider === "openrouter" ? "openrouter (routed per agent)" : provider === "zai" ? "z-ai" : null;
   const reasoningMode = degraded ? "HEURISTIC" : "LLM";
+  // Truthful routing: the ACTUAL dynamic chain + which models are cooled down
+  // (circuit-breaker) so the panel never claims a paid/dead model is "primary".
+  const [routing, health] = await Promise.all([routingTableLive().catch(() => []), Promise.resolve(providerHealthSnapshot())]);
   return {
     provider, providers, model, degraded, reasoningMode, premiumMode: premiumMode(),
     summary: degraded
@@ -68,7 +72,7 @@ export function getProviderStatus(): ProviderStatus {
       : `LLM ACTIVE — ${providers.join(" + ")} [${premiumMode() ? "PREMIUM" : "FREE_GENESIS_MODE ($0 models only)"}]; agents route per capability with provider fallback.`,
     llmGated: LLM_GATED.map((g) => ({ ...g, mode: reasoningMode })),
     procedural: PROCEDURAL,
-    routing: routingTable(),
+    routing, health,
     hint: degraded ? "Set GEMINI_API_KEY (free tier), OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OLLAMA_HOST (local) to activate real reasoning." : "Providers active. Free mode order: Gemini free tier → OpenRouter :free → local Ollama; PREMIUM_MODE=true unlocks frontier models.",
   };
 }
@@ -84,7 +88,7 @@ export interface ProviderCheck {
 
 /** Real round-trip through the actual adapter — proves reasoning works, or reports the honest failure. */
 export async function checkProvider(): Promise<ProviderCheck> {
-  const status = getProviderStatus();
+  const status = await getProviderStatus();
   const t0 = Date.now();
   const r = await callLlm({ system: "You are a health check. Reply with exactly: OK", user: "ping", maxTokens: 8, temperature: 0, timeoutMs: 10_000 });
   return {

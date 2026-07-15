@@ -9,9 +9,9 @@ for (const k of KEYS) saved[k] = process.env[k];
 function clearKeys() { for (const k of KEYS) delete process.env[k]; }
 afterEach(() => { for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
 
-test("no key → DEGRADED, HEURISTIC reasoning, and every LLM-gated gate flagged heuristic", () => {
+test("no key → DEGRADED, HEURISTIC reasoning, and every LLM-gated gate flagged heuristic", async () => {
   clearKeys();
-  const s = getProviderStatus();
+  const s = await getProviderStatus();
   expect(s.provider).toBe("none");
   expect(s.degraded).toBe(true);
   expect(s.reasoningMode).toBe("HEURISTIC");
@@ -20,9 +20,9 @@ test("no key → DEGRADED, HEURISTIC reasoning, and every LLM-gated gate flagged
   expect(s.summary).toContain("DEGRADED");
 });
 
-test("procedural gates are marked EXACT — never counted as a degradation", () => {
+test("procedural gates are marked EXACT — never counted as a degradation", async () => {
   clearKeys();
-  const s = getProviderStatus();
+  const s = await getProviderStatus();
   // CUSTOMER simulation / AEGIS / DEMAND / BENCHMARK are deterministic by design.
   const gates = s.procedural.map((g) => g.gate).join(" ");
   expect(gates).toContain("CUSTOMER");
@@ -31,10 +31,10 @@ test("procedural gates are marked EXACT — never counted as a degradation", () 
   for (const g of s.procedural) expect("mode" in g).toBe(false);
 });
 
-test("setting a key flips status to LLM ACTIVE with the model (status logic only, no call)", () => {
+test("setting a key flips status to LLM ACTIVE with the model (status logic only, no call)", async () => {
   clearKeys();
   process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
-  const s = getProviderStatus();
+  const s = await getProviderStatus();
   expect(s.provider).toBe("anthropic");
   expect(s.degraded).toBe(false);
   expect(s.reasoningMode).toBe("LLM");
@@ -42,17 +42,17 @@ test("setting a key flips status to LLM ACTIVE with the model (status logic only
   expect(s.llmGated.every((g) => g.mode === "LLM")).toBe(true);
 });
 
-test("GENESIS_LLM_MODEL overrides the default model", () => {
+test("GENESIS_LLM_MODEL overrides the default model", async () => {
   clearKeys();
   process.env.ANTHROPIC_API_KEY = "sk-test";
   process.env.GENESIS_LLM_MODEL = "claude-opus-4-8";
-  expect(getProviderStatus().model).toBe("claude-opus-4-8");
+  expect((await getProviderStatus()).model).toBe("claude-opus-4-8");
 });
 
-test("OpenRouter as sole provider is not degraded and lists in providers[]", () => {
+test("OpenRouter as sole provider is not degraded and lists in providers[]", async () => {
   clearKeys();
   process.env.OPENROUTER_API_KEY = "sk-or-test";
-  const s = getProviderStatus();
+  const s = await getProviderStatus();
   expect(s.degraded).toBe(false);
   expect(s.providers).toContain("openrouter");
   expect(s.reasoningMode).toBe("LLM");

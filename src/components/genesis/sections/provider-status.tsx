@@ -8,12 +8,14 @@ import { useEffect, useState } from "react";
 import { BrainCircuit, Zap } from "lucide-react";
 import { Chip, HudPanel } from "../primitives";
 
-interface RouteHop { provider: string; model: string; available: boolean }
+interface RouteHop { provider: string; model: string; available: boolean; estLatencyMs?: number }
+interface Health { model: string; coolingForSec: number; reason: string }
 interface Status {
   provider: string; providers: string[]; model: string | null; degraded: boolean; reasoningMode: string; summary: string; hint: string;
   llmGated: { gate: string; note: string; mode: string }[];
   procedural: { gate: string; note: string }[];
   routing: { agent: string; capability: string; chain: RouteHop[] }[];
+  health?: Health[];
 }
 interface Check { ok: boolean; degraded: boolean; latencyMs: number; sample?: string; error?: string; model: string | null }
 interface Usage { calls: number; okCalls: number; fallbackCalls: number; totalTokens: number; totalCostUsd: number; byProvider: Record<string, { calls: number; tokens: number; costUsd: number }> }
@@ -103,21 +105,34 @@ export function ProviderStatus() {
         </div>
       )}
 
-      {/* ===== per-agent routing table ===== */}
+      {/* ===== circuit-breaker health: models cooled down + why (fallback reason) ===== */}
+      {(status.health?.length ?? 0) > 0 && (
+        <div className="mt-3 pt-2 border-t border-amber-500/10 font-mono text-[10px]">
+          <span className="text-amber-500/80 uppercase tracking-wider">Cooling down (skipped fail-fast):</span>{" "}
+          {(status.health ?? []).map((h) => (
+            <Chip key={h.model} variant="amber">{h.model} · {h.coolingForSec}s · {h.reason}</Chip>
+          ))}
+        </div>
+      )}
+
+      {/* ===== per-agent routing table (ACTUAL dynamic order, measured latency) ===== */}
       <button onClick={() => setShowRouting((v) => !v)} className="mt-2 font-mono text-[9px] uppercase tracking-wider text-emerald-400/80 hover:text-emerald-300">
-        {showRouting ? "▾" : "▸"} per-agent model routing ({status.routing?.length ?? 0} agents)
+        {showRouting ? "▾" : "▸"} per-agent model routing ({status.routing?.length ?? 0} agents · live)
       </button>
       {showRouting && (
         <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5 font-mono text-[10px]">
-          {(status.routing ?? []).map((r) => (
-            <div key={r.agent} className="flex items-center gap-2">
-              <span className="text-zinc-300 w-24 truncate">{r.agent}</span>
-              <Chip variant={CAP_CHIP[r.capability] ?? "zinc"}>{r.capability}</Chip>
-              <span className="text-zinc-500 truncate" title={r.chain.map((h) => `${h.provider}:${h.model}${h.available ? "" : " (no key)"}`).join(" → ")}>
-                {(r.chain.find((h) => h.available)?.model) ?? r.chain[0]?.model} <span className="text-zinc-700">→ {r.chain.length} hops</span>
-              </span>
-            </div>
-          ))}
+          {(status.routing ?? []).map((r) => {
+            const primary = r.chain[0];
+            return (
+              <div key={r.agent} className="flex items-center gap-2">
+                <span className="text-zinc-300 w-24 truncate">{r.agent}</span>
+                <Chip variant={CAP_CHIP[r.capability] ?? "zinc"}>{r.capability}</Chip>
+                <span className="text-zinc-500 truncate" title={r.chain.map((h) => `${h.provider}:${h.model}${h.estLatencyMs ? ` ~${h.estLatencyMs}ms` : ""}${h.available ? "" : " (no key)"}`).join(" → ")}>
+                  {primary?.model ?? "—"}{primary?.estLatencyMs ? <span className="text-emerald-600/70"> ~{primary.estLatencyMs}ms</span> : null} <span className="text-zinc-700">→ {r.chain.length} hops</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 

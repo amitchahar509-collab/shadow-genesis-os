@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   if (searchParams.has("usage")) {
     return NextResponse.json({ usage: await getUsageSummary(Number(searchParams.get("windowHours")) || undefined) });
   }
-  return NextResponse.json({ status: getProviderStatus() });
+  return NextResponse.json({ status: await getProviderStatus() });
 }
 
 /** POST /api/genesis/provider — real self-test round-trip through the adapter (makes an external call when keyed). */

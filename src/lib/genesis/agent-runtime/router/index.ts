@@ -195,7 +195,12 @@ export async function resolveChainDynamic(agent: string, importance: Importance 
   const hops: Hop[] = [];
   const seen = new Set<string>();
   const push = (provider: string, model: string) => {
-    if (!seen.has(model) && avail.has(provider as RoutableProvider)) { hops.push({ provider: provider as RoutableProvider, model }); seen.add(model); }
+    if (seen.has(model) || !avail.has(provider as RoutableProvider)) return;
+    seen.add(model);
+    // fail-fast: in free mode, never route to a model that just 429'd/402'd/timed
+    // out — the circuit breaker keeps subsequent calls off the dead path instantly.
+    if (!premiumMode() && coolingReason(model)) return;
+    hops.push({ provider: provider as RoutableProvider, model });
   };
 
   // 1. explicit per-seat/per-call preferences, resolved via the registry
@@ -205,6 +210,16 @@ export async function resolveChainDynamic(agent: string, importance: Importance 
     const rows: Reg[] = await db.modelRegistry.findMany({ where: { modelId: { in: preferModels }, active: true, ...(premiumMode() ? {} : { free: true }) }, select: { modelId: true, provider: true } }).catch(() => [] as Reg[]);
     const byId = new Map(rows.map((r) => [r.modelId, r]));
     for (const m of preferModels) { const r = byId.get(m); if (r) push(r.provider, r.modelId); }
+  }
+  // 1b. FREE mode: lead with the working Gemini free tier before anything else.
+  //     The :free OpenRouter pools are frequently saturated (429) for uncredited
+  //     accounts; Gemini's free tier actually serves. Ordered by MEASURED
+  //     reliability so the proven-working model comes first, and cooling-down
+  //     ones are skipped by push(). This guarantees a REASONING agent's chain
+  //     reaches a model that works instead of only high-tier models that don't.
+  if (!premiumMode() && avail.has("gemini")) {
+    const gems = await db.modelRegistry.findMany({ where: { free: true, active: true, provider: "gemini" }, orderBy: [{ reliability: "desc" }, { avgLatencyMs: "asc" }], select: { modelId: true } }).catch(() => [] as { modelId: string }[]);
+    for (const g of gems) push("gemini", g.modelId);
   }
   // 2. measured registry ranking — in free mode, apply the directive's provider
   //    precedence (gemini free tier → openrouter free → local ollama), keeping
@@ -247,6 +262,25 @@ async function isFreeModel(model: string): Promise<boolean> {
   return freeSetCache.set.has(model);
 }
 
+// ── Free-mode circuit breaker ──────────────────────────────────────────────
+// A model that just rate-limited (429), has no credits (402), or timed out cannot
+// serve right now. Cool it down so subsequent calls SKIP it instantly instead of
+// re-paying the timeout + backoff. This is the fail-fast core: after the first
+// call learns which free models are dead, every later call routes straight to a
+// verified-working one. Only active in FREE mode — premium routing is untouched.
+const HARD_FAIL = /(_429|_402|timeout|timed out|aborted|ECONN|fetch failed)/i;
+const COOLDOWN_MS = 90_000;
+const modelCooldown = new Map<string, { until: number; reason: string }>();
+function coolDownModel(model: string, reason: string) { modelCooldown.set(model, { until: Date.now() + COOLDOWN_MS, reason: reason.replace(/\s+/g, " ").slice(0, 60) }); }
+function coolingReason(model: string): string | null { const c = modelCooldown.get(model); if (c && c.until > Date.now()) return c.reason; if (c) modelCooldown.delete(model); return null; }
+/** Test/ops hygiene: clear the circuit breaker. */
+export function resetProviderHealth() { modelCooldown.clear(); }
+/** Which models are currently cooled down, and why — for the Provider Status UI. */
+export function providerHealthSnapshot(): { model: string; coolingForSec: number; reason: string }[] {
+  const now = Date.now();
+  return [...modelCooldown.entries()].filter(([, c]) => c.until > now).map(([model, c]) => ({ model, coolingForSec: Math.round((c.until - now) / 1000), reason: c.reason }));
+}
+
 export interface RoutedResult extends LlmResult { provider?: RoutableProvider; model?: string; capability: Capability; costUsd: number; expectedCostUsd?: number; fallbackDepth: number; retries?: number; importance?: Importance }
 
 /**
@@ -287,6 +321,9 @@ export async function callLlmRouted(
     const hop = chain[depth];
     // Never burn credits accidentally: in free mode, refuse any non-$0 hop outright.
     if (!premiumMode() && !(await isFreeModel(hop.model))) { lastError = `SKIPPED_PAID_MODEL ${hop.model} (PREMIUM_MODE not enabled)`; continue; }
+    // Fail-fast: skip a model the circuit breaker cooled down (429/402/timeout) —
+    // don't re-pay the timeout+backoff to confirm it's still dead. Free mode only.
+    if (!premiumMode()) { const cr = coolingReason(hop.model); if (cr) { lastError = `SKIPPED_COOLDOWN ${hop.model} (${cr})`; continue; } }
     const preEstimate = expectedCost(hop.model, opts);
     // …and never past the daily cap: skip paid hops that would exceed it — the
     // chain degrades to its free hops instead of silently burning credits.
@@ -305,7 +342,15 @@ export async function callLlmRouted(
       } catch (e) {
         lastError = e instanceof Error ? e.message : String(e);
         await recordModelOutcome(hop.model, false, Date.now() - t0).catch(() => {});
-        if (attempt === 0 && TRANSIENT.test(lastError)) {
+        // Circuit breaker: a hard failure (429/402/timeout/conn) means this model
+        // can't serve now — cool it down so the NEXT call skips it instantly.
+        if (!premiumMode() && HARD_FAIL.test(lastError)) coolDownModel(hop.model, lastError);
+        // Fail-fast retry policy. Premium: retry the same model once on any transient
+        // error (unchanged). Free: a 429/402/timeout won't clear in 4s and the pool is
+        // saturated — DON'T waste a same-model retry+backoff; advance to the next hop.
+        // Only genuinely transient server errors (5xx/overloaded) get the free retry.
+        const sameModelRetry = attempt === 0 && TRANSIENT.test(lastError) && (premiumMode() || !HARD_FAIL.test(lastError));
+        if (sameModelRetry) {
           totalRetries++;
           // Backoff before the retry — an immediate retry of a 429 just 429s again.
           // Free-tier RPM limits need a longer breath.
@@ -342,6 +387,25 @@ export async function routingTableDynamic(): Promise<{ agent: string; capability
   for (const agent of agents) {
     const chain = await resolveChainDynamic(agent);
     out.push({ agent, capability: capabilityFor(agent), models: chain.map((h) => h.model) });
+  }
+  return out;
+}
+
+export interface LiveRouteHop { provider: string; model: string; available: boolean; estLatencyMs?: number }
+/** Truthful per-agent routing for the Provider Status panel: the ACTUAL
+ *  resolveChainDynamic order (not the theoretical paid-inclusive CHAINS), each hop
+ *  tagged with provider availability and measured latency. Cooled-down models are
+ *  already excluded from the chain by the router — {@link providerHealthSnapshot}
+ *  explains which ones and why (the fallback reason). */
+export async function routingTableLive(): Promise<{ agent: string; capability: Capability; chain: LiveRouteHop[] }[]> {
+  const avail = availableProviders();
+  const agents = [...new Set([...Object.keys(AGENT_CAPABILITY), "VENTURE", "OPPORTUNITY"])];
+  const rows = await db.modelRegistry.findMany({ select: { modelId: true, avgLatencyMs: true } }).catch(() => [] as { modelId: string; avgLatencyMs: number }[]);
+  const latency = new Map(rows.map((r) => [r.modelId, r.avgLatencyMs]));
+  const out: { agent: string; capability: Capability; chain: LiveRouteHop[] }[] = [];
+  for (const agent of agents) {
+    const chain = await resolveChainDynamic(agent);
+    out.push({ agent, capability: capabilityFor(agent), chain: chain.map((h) => ({ provider: h.provider, model: h.model, available: avail.has(h.provider), estLatencyMs: latency.get(h.model) || undefined })) });
   }
   return out;
 }
