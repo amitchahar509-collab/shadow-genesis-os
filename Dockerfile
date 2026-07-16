@@ -13,6 +13,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN bun x prisma generate
+# Next collects page data at build time, which imports routes that construct the
+# Prisma client — that needs DATABASE_URL to exist or it throws "Invalid value
+# undefined for datasource db". This is a BUILD-time placeholder only (no queries
+# run during build); the runtime stage sets the real path.
+ENV DATABASE_URL=file:/tmp/build.db
 RUN bun run build
 
 # ===== Stage 3: Runtime =====
