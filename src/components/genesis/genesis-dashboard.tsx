@@ -430,13 +430,22 @@ function MissionsView({ missions, onRefresh }: { missions: any[]; onRefresh: () 
                     </div>
                   )}
                   {m.outputs.deployUrl && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono text-[9px] text-zinc-500 shrink-0">app</span>
                       <a href={m.outputs.deployUrl} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-emerald-400 underline break-all">{m.outputs.deployUrl}</a>
-                      {m.outputs.deployHealth && <span className={cn("font-mono text-[8px] uppercase px-1 rounded", m.outputs.deployHealth === "HEALTHY" ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-700 text-zinc-400")}>{m.outputs.deployHealth === "HEALTHY" ? "live" : "not running — restart from repo"}</span>}
+                      {m.outputs.deployHealth && <span className={cn("font-mono text-[8px] uppercase px-1 rounded", m.outputs.deployHealth === "HEALTHY" ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400")}>{m.outputs.deployHealth === "HEALTHY" ? "live" : "stopped"}</span>}
+                      {m.outputs.deployHealth !== "HEALTHY" && m.outputs.deploymentId && (
+                        <button
+                          onClick={async () => {
+                            await fetch("/api/genesis/deploy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "restart", deploymentId: m.outputs.deploymentId }) }).catch(() => {});
+                            onRefresh();
+                          }}
+                          className="font-mono text-[8px] uppercase px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                        >▸ restart</button>
+                      )}
                     </div>
                   )}
-                  <div className="font-mono text-[8px] text-zinc-600">local deploys run as a child of Genesis and stop when it restarts — re-run <code className="text-zinc-500">npm start</code> in the repo to bring it back up.</div>
+                  <div className="font-mono text-[8px] text-zinc-600">local deploys run detached and survive a Genesis restart; if one is stopped, use <span className="text-zinc-500">restart</span> above or run <code className="text-zinc-500">npm start</code> in the repo.</div>
                 </div>
               )}
               {m.error && <div className="mt-1 text-[10px] font-mono text-rose-400">Error: {m.error}</div>}

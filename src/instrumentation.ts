@@ -9,5 +9,12 @@ export async function register() {
     } catch (e) {
       console.error("[genesis] app-config load failed:", e instanceof Error ? e.message : e);
     }
+    // Reflect which local deploys survived this restart (detached apps keep
+    // serving) vs. which stopped — so the UI shows the real state, not stale
+    // "HEALTHY". Fire-and-forget: it must never delay the server becoming ready.
+    void import("@/lib/genesis/agent-runtime/deployment/local-runtime")
+      .then(({ reconcileLocalDeploys }) => reconcileLocalDeploys())
+      .then((rc) => { if (rc.checked > 0) console.log(`[genesis] local deploys: ${rc.alive}/${rc.checked} still serving after restart`); })
+      .catch((e) => console.error("[genesis] local-deploy reconcile failed:", e instanceof Error ? e.message : e));
   }
 }

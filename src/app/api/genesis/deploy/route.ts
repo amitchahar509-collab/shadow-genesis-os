@@ -5,6 +5,7 @@ import {
   markDeployed, checkHealth, rollback,
 } from "@/lib/genesis/agent-runtime/deployment-cloud";
 import type { ProviderName } from "@/lib/genesis/agent-runtime/deployment-cloud/cloud-providers";
+import { restartLocalDeploy } from "@/lib/genesis/agent-runtime/deployment/local-runtime";
 
 /** GET /api/genesis/deploy — cloud deploy overview (providers, deployments, health).
  *  ?verify=<provider> verifies one provider; ?verify=all verifies all configured.
@@ -52,7 +53,12 @@ export async function POST(req: NextRequest) {
       const r = await rollback(String(b.deploymentId));
       return NextResponse.json(r, { status: r.ok ? 200 : 400 });
     }
+    case "restart": {
+      if (!b.deploymentId) return NextResponse.json({ error: "deploymentId required" }, { status: 400 });
+      const r = await restartLocalDeploy(String(b.deploymentId));
+      return NextResponse.json(r, { status: r.ok ? 200 : 400 });
+    }
     default:
-      return NextResponse.json({ error: "action must be plan|decide|deployed|health|rollback" }, { status: 400 });
+      return NextResponse.json({ error: "action must be plan|decide|deployed|health|rollback|restart" }, { status: 400 });
   }
 }

@@ -19,13 +19,14 @@ export async function GET() {
           .findMany({ where: { taskId: { in: m.taskIds }, type: "REPOSITORY" }, orderBy: { createdAt: "desc" }, select: { path: true, description: true } })
           .catch(() => [] as { path: string; description: string }[]),
         db.deploymentRecord
-          .findFirst({ where: { taskId: { in: m.taskIds }, url: { not: null } }, orderBy: { createdAt: "desc" }, select: { url: true, target: true, status: true, health: true } })
+          .findFirst({ where: { taskId: { in: m.taskIds }, url: { not: null } }, orderBy: { createdAt: "desc" }, select: { id: true, url: true, target: true, status: true, health: true } })
           .catch(() => null),
       ]);
       const outputs = {
         workspaceRoot: workspaceRoot(),
         repoPath: repos[0]?.path ?? null,
         repoPaths: repos.map((r) => r.path),
+        deploymentId: deploy?.id ?? null,
         deployUrl: deploy?.url ?? null,
         deployTarget: deploy?.target ?? null,
         deployStatus: deploy?.status ?? null,

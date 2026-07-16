@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { db } from "@/lib/db";
 import { BaseAgent, type AgentRunContext, type AgentRunInput } from "../base-agent";
 import { callLlm, parseJsonResponse } from "../types";
+import { startLocalDetached, findFreePort } from "../deployment/local-runtime";
 
 // ============ CEO ============
 export class CeoAgent extends BaseAgent {
@@ -418,13 +419,16 @@ export class DeploymentAgent extends BaseAgent {
     let url: string | null = null;
     if (target === "local") {
       if (pkgExists) {
-        // The host may not have node — bun runs node entrypoints natively, so
-        // "node <file>" start scripts are executed as "bun <file>".
-        const nodeEntry = startScript.match(/^node\s+(\S+)$/)?.[1];
-        const runCmd = nodeEntry ? `bun ${nodeEntry}` : "bun run start";
-        // nohup + & works in both /bin/sh and Git Bash on Windows (setsid is Linux-only)
-        await ctx.tool("terminal", "exec", { command: `cd "${repoPath}" && nohup sh -c 'PORT=${port} ${runCmd}' > deploy-${record.id}.log 2>&1 &`, timeoutMs: 5_000 });
-        url = `http://localhost:${port}`;
+        // Launch DETACHED so the app outlives a Genesis restart (own process
+        // group, no inherited console, unref'd). Pick a free port so a deploy
+        // that survived a previous restart doesn't collide with this one.
+        const livePort = await findFreePort(port);
+        const started = await startLocalDetached({ repoPath, port: livePort, logPath: path.join(repoPath, `deploy-${record.id}.log`) });
+        if ("error" in started) {
+          await db.deploymentRecord.update({ where: { id: record.id }, data: { status: "FAILED", log: started.error } });
+          throw new Error(`deployment failed: ${started.error}`);
+        }
+        url = `http://localhost:${livePort}`;
         // Health check
         await new Promise((r) => setTimeout(r, 3000));
         // Any HTTP response means the server is listening — a 404 at "/" is
