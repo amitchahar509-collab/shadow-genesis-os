@@ -11,10 +11,15 @@ export async function register() {
     }
     // Reflect which local deploys survived this restart (detached apps keep
     // serving) vs. which stopped — so the UI shows the real state, not stale
-    // "HEALTHY". Fire-and-forget: it must never delay the server becoming ready.
+    // "HEALTHY" — then keep them alive continuously. Both fire-and-forget: they
+    // must never delay the server becoming ready.
     void import("@/lib/genesis/agent-runtime/deployment/local-runtime")
-      .then(({ reconcileLocalDeploys }) => reconcileLocalDeploys())
-      .then((rc) => { if (rc.checked > 0) console.log(`[genesis] local deploys: ${rc.alive}/${rc.checked} still serving after restart`); })
-      .catch((e) => console.error("[genesis] local-deploy reconcile failed:", e instanceof Error ? e.message : e));
+      .then(async ({ reconcileLocalDeploys, startDeploySupervisor }) => {
+        const rc = await reconcileLocalDeploys();
+        if (rc.checked > 0) console.log(`[genesis] local deploys: ${rc.alive}/${rc.checked} serving after restart (${rc.revived} revived)`);
+        const sup = startDeploySupervisor();
+        if (sup.started) console.log(`[genesis] deploy supervisor active (every ${sup.intervalMs}ms)`);
+      })
+      .catch((e) => console.error("[genesis] local-deploy reconcile/supervisor failed:", e instanceof Error ? e.message : e));
   }
 }

@@ -139,6 +139,40 @@ export async function reconcileLocalDeploys(): Promise<{ checked: number; alive:
   return { checked, alive, revived };
 }
 
+// ── Continuous health-restart supervisor ───────────────────────────────────
+// Boot-time reconcile only catches apps that were dead when Genesis started. A
+// crash, an OOM, or a manual kill AFTER boot would otherwise leave the URL dead
+// until the next restart. The supervisor re-runs reconciliation on an interval
+// so a HEALTHY deploy that dies is brought back within one tick — the app's URL
+// self-heals as long as Genesis is up.
+let supervisorTimer: ReturnType<typeof setInterval> | null = null;
+let supervisorTick = false; // overlap guard — a slow revive must not stack ticks
+
+/** Start the health-restart supervisor. Idempotent (safe to call once at boot).
+ *  Interval from GENESIS_DEPLOY_SUPERVISOR_MS (default 30000); 0 disables it. */
+export function startDeploySupervisor(): { started: boolean; intervalMs: number } {
+  const intervalMs = Number(process.env.GENESIS_DEPLOY_SUPERVISOR_MS ?? 30_000);
+  if (supervisorTimer || !Number.isFinite(intervalMs) || intervalMs <= 0) {
+    return { started: Boolean(supervisorTimer), intervalMs: supervisorTimer ? intervalMs : 0 };
+  }
+  supervisorTimer = setInterval(() => {
+    if (supervisorTick) return; // previous sweep still running
+    supervisorTick = true;
+    reconcileLocalDeploys()
+      .then((rc) => { if (rc.revived > 0) console.log(`[genesis] deploy supervisor revived ${rc.revived} dead app(s) (${rc.alive}/${rc.checked} healthy)`); })
+      .catch((e) => console.error("[genesis] deploy supervisor error:", e instanceof Error ? e.message : e))
+      .finally(() => { supervisorTick = false; });
+  }, intervalMs);
+  // Don't let the supervisor alone keep the process alive.
+  (supervisorTimer as unknown as { unref?: () => void }).unref?.();
+  return { started: true, intervalMs };
+}
+
+/** Stop the supervisor (tests / graceful shutdown). */
+export function stopDeploySupervisor(): void {
+  if (supervisorTimer) { clearInterval(supervisorTimer); supervisorTimer = null; }
+}
+
 /** Relaunch a stopped local deploy from its recorded repo (detached). */
 export async function restartLocalDeploy(recordId: string): Promise<{ ok: boolean; url?: string; error?: string }> {
   const rec = await db.deploymentRecord.findUnique({ where: { id: recordId } }).catch(() => null);
