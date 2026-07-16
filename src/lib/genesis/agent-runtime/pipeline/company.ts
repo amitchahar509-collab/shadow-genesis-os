@@ -22,6 +22,7 @@ import { verifySubject } from "../aegis";
 import { dispatchGoal, type DispatchResult } from "../orchestrator";
 import { getMemoryEngine } from "../memory/engine";
 import { emit } from "../event-bus";
+import { workspaceRoot } from "../workspace";
 
 export interface CreateCompanyOptions {
   /** Optional market focus (e.g. "developer tools"). Discovery still runs — this is a lens, not an idea. */
@@ -178,7 +179,7 @@ export async function createCompany(opts: CreateCompanyOptions = {}): Promise<Co
     }
 
     // ---- 6. RECORD + ARTIFACT + MEMORY --------------------------------------
-    const artifactDir = path.resolve(process.cwd(), ".genesis-workspace", "pipeline", runId);
+    const artifactDir = path.resolve(workspaceRoot(), "pipeline", runId);
     await fs.mkdir(artifactDir, { recursive: true });
     const artifactPath = path.join(artifactDir, "VENTURE_RUN.md");
     await fs.writeFile(artifactPath, renderMarkdown({ runId, focus: opts.focus, opp, venture, customer, truth: truth.overallTruth, board, status, companyKey, build, mode, stages }), "utf8");

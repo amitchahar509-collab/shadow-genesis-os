@@ -19,6 +19,7 @@ import * as path from "node:path";
 import { db } from "@/lib/db";
 import { emit, events } from "../event-bus";
 import { parseJsonResponse } from "../types";
+import { workspaceRoot } from "../workspace";
 
 export type Stance = "GO" | "NO_GO" | "ABSTAIN";
 export type Verdict = "GO" | "CONDITIONAL" | "NO_GO";
@@ -368,9 +369,9 @@ export async function conveneBoard(input: ConveneInput): Promise<BoardDecisionRe
   const { verdict, confidence, tally, conditions, risks, synthesis } = synthesize(args);
 
   const decisionId = `BOARD-${(await nextDecisionNumber()).toString().padStart(6, "0")}`;
-  const workspaceRoot = input.workspaceRoot ?? path.resolve(process.cwd(), ".genesis-workspace", "boardroom", decisionId);
-  await fs.mkdir(workspaceRoot, { recursive: true }).catch(() => {});
-  const artifactPath = path.join(workspaceRoot, "BOARD_DECISION.md");
+  const boardWorkspace = input.workspaceRoot ?? path.resolve(workspaceRoot(), "boardroom", decisionId);
+  await fs.mkdir(boardWorkspace, { recursive: true }).catch(() => {});
+  const artifactPath = path.join(boardWorkspace, "BOARD_DECISION.md");
 
   const result: BoardDecisionResult = { decisionId, topic: input.topic, question: input.question, verdict, confidence, tally, synthesis, conditions, risks, mode, arguments: args, artifactPath };
 

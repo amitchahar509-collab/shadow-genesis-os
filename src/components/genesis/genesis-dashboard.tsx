@@ -420,6 +420,25 @@ function MissionsView({ missions, onRefresh }: { missions: any[]; onRefresh: () 
                   ))}
                 </div>
               )}
+              {m.outputs && (m.outputs.repoPath || m.outputs.deployUrl) && (
+                <div className="mt-2 border-t border-zinc-800 pt-2 space-y-1">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-zinc-500">▸ generated output</div>
+                  {m.outputs.repoPath && (
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-mono text-[9px] text-zinc-500 shrink-0 mt-0.5">repo</span>
+                      <code className="font-mono text-[10px] text-cyan-300 break-all select-all" title="Absolute path to the generated project — open it in your editor or a terminal">{m.outputs.repoPath}</code>
+                    </div>
+                  )}
+                  {m.outputs.deployUrl && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-[9px] text-zinc-500 shrink-0">app</span>
+                      <a href={m.outputs.deployUrl} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-emerald-400 underline break-all">{m.outputs.deployUrl}</a>
+                      {m.outputs.deployHealth && <span className={cn("font-mono text-[8px] uppercase px-1 rounded", m.outputs.deployHealth === "HEALTHY" ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-700 text-zinc-400")}>{m.outputs.deployHealth === "HEALTHY" ? "live" : "not running — restart from repo"}</span>}
+                    </div>
+                  )}
+                  <div className="font-mono text-[8px] text-zinc-600">local deploys run as a child of Genesis and stop when it restarts — re-run <code className="text-zinc-500">npm start</code> in the repo to bring it back up.</div>
+                </div>
+              )}
               {m.error && <div className="mt-1 text-[10px] font-mono text-rose-400">Error: {m.error}</div>}
             </div>
           ))

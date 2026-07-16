@@ -8,6 +8,7 @@ import { invokeTool } from "./tools";
 import type { ToolContext, ToolOutput } from "./tools/index";
 import { emit, events } from "./event-bus";
 import { recordOutcome } from "./improvement/prompts";
+import { workspaceRoot } from "./workspace";
 
 export interface AgentRunInput {
   goal: string;
@@ -55,7 +56,7 @@ export abstract class BaseAgent {
     this.evolvedPrompt = undefined; // re-resolve per execution (the active version can change)
     this.evolvedPromptConsumed = false;
     this.executionId = await allocateExecution({ agent: this.name, taskId: input.taskId ?? null, projectId: input.projectId ?? null, goal: input.goal, parentExecutionId: input.parentExecutionId ?? null });
-    const sandbox = path.resolve(process.cwd(), ".genesis-workspace", this.name.toLowerCase(), this.executionId);
+    const sandbox = path.resolve(workspaceRoot(), this.name.toLowerCase(), this.executionId);
     await fs.mkdir(sandbox, { recursive: true });
     this.sandboxRoot = sandbox;
 

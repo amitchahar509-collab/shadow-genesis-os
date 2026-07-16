@@ -28,6 +28,7 @@ import { assertClaim } from "../aegis";
 import { getMemoryEngine } from "../memory/engine";
 import { pickProvider } from "../types";
 import { emit } from "../event-bus";
+import { workspaceRoot } from "../workspace";
 
 export type Team = "ALPHA" | "BETA" | "GAMMA";
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
@@ -173,7 +174,7 @@ export async function runCompetition(input: RunCompetitionInput): Promise<ArenaR
     missionId: competitionId,
   }).catch(() => null);
 
-  const artifactDir = path.resolve(process.cwd(), ".genesis-workspace", "arena", competitionId);
+  const artifactDir = path.resolve(workspaceRoot(), "arena", competitionId);
   await fs.mkdir(artifactDir, { recursive: true }).catch(() => {});
   const artifactPath = path.join(artifactDir, "ARENA_RESULT.md");
   await fs.writeFile(artifactPath, renderMarkdown(competitionId, input.mission, subject, mode, scored, rationale, board), "utf8").catch(() => {});

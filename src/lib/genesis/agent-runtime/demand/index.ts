@@ -24,6 +24,7 @@ import * as path from "node:path";
 import { db } from "@/lib/db";
 import { getAgent } from "../agents";
 import { emit } from "../event-bus";
+import { workspaceRoot } from "../workspace";
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Math.round(n)));
 
@@ -137,7 +138,7 @@ export async function matchDemand(dna: ProductDNAResult, opts?: { personaCount?:
   const mode = "HEURISTIC";
   const matchId = await nextId("DM");
 
-  const artifactDir = path.resolve(process.cwd(), ".genesis-workspace", "demand", matchId);
+  const artifactDir = path.resolve(workspaceRoot(), "demand", matchId);
   await fs.mkdir(artifactDir, { recursive: true }).catch(() => {});
   const artifactPath = path.join(artifactDir, "DEMAND_MAP.md");
   await fs.writeFile(artifactPath, renderMarkdown(matchId, dna, demandScore, segments), "utf8").catch(() => {});
