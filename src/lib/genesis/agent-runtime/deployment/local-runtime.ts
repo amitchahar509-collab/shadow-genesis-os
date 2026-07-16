@@ -10,7 +10,6 @@
  *   - restartLocalDeploy():    relaunch a stopped one from its recorded repo.
  */
 import { spawn } from "node:child_process";
-import { openSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import net from "node:net";
@@ -40,6 +39,19 @@ async function isPortAlive(port: number): Promise<boolean> {
   });
 }
 
+/** Poll a URL until it answers (any HTTP response = listening). The WMI launch
+ *  path adds powershell+cmd+bun startup (~2-5s), so a single fixed-delay check
+ *  produces false UNHEALTHY verdicts — poll instead. */
+export async function waitForHttp(url: string, timeoutMs = 15_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const ok = await fetch(url, { signal: AbortSignal.timeout(1500) }).then(() => true).catch(() => false);
+    if (ok) return true;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return false;
+}
+
 /** Re-derive the run command from the repo's package.json start script.
  *  `node <entry>` is executed via bun (the host may not have node). */
 export async function deriveRunArgs(repoPath: string): Promise<string[] | null> {
@@ -52,17 +64,49 @@ export async function deriveRunArgs(repoPath: string): Promise<string[] | null> 
   } catch { return null; }
 }
 
-/** Spawn the app fully detached so it outlives this process. Returns its pid. */
+/** Spawn the app fully detached so it outlives this process. Returns its pid.
+ *
+ *  CRITICAL — stdio MUST be "ignore". Handing our own file descriptors to the
+ *  child makes Windows spawn it with bInheritHandles=TRUE, which also hands over
+ *  Genesis's LISTENING SOCKET. The child then pins Genesis's port for its whole
+ *  life, so the next Genesis start dies with EADDRINUSE ("Failed to start
+ *  server. Is port X in use?") and silently exits — leaving nothing serving and
+ *  no reconciliation to revive anything. Let the shell own the redirection so we
+ *  inherit nothing to the child. */
 export async function startLocalDetached(opts: { repoPath: string; port: number; logPath: string }): Promise<{ pid?: number; runCmd: string } | { error: string }> {
   const args = await deriveRunArgs(opts.repoPath);
   if (!args) return { error: "no start script in package.json" };
-  // Own log fd (not closed — the detached child inherits it and keeps writing).
-  const out = openSync(opts.logPath, "a");
+
+  if (process.platform === "win32") {
+    // On Windows, Node's spawn sets bInheritHandles=TRUE even with stdio:"ignore",
+    // so a direct child inherits Genesis's LISTENING SOCKET and pins Genesis's
+    // port for its whole life — the next Genesis start then dies with EADDRINUSE
+    // and exits silently. PROVEN by execution: killing the child apps freed the
+    // dead server's port instantly. So ask WMI to create the process instead:
+    // WmiPrvSE becomes the parent and the app inherits nothing from us. The
+    // transient powershell launcher below exits in ~1s; only IT briefly inherits.
+    //
+    // cmd /c with an outer-quoted line that contains inner quotes strips exactly
+    // the first and last quote — the same pattern verified working for launching
+    // Genesis itself. Inside a PowerShell SINGLE-quoted string, only ' needs
+    // escaping ('' ) — double quotes pass through literally.
+    const cmdLine = `cmd.exe /c "set PORT=${opts.port}&& set NODE_ENV=production&& "${process.execPath}" ${args.join(" ")} > "${opts.logPath}" 2>&1"`;
+    const psQuote = (s: string) => s.replace(/'/g, "''");
+    const ps = `$r=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine='${psQuote(cmdLine)}';CurrentDirectory='${psQuote(opts.repoPath)}'}; if($r.ReturnValue -eq 0){Write-Output $r.ProcessId}else{Write-Output ('ERR:'+$r.ReturnValue)}`;
+    const out = await new Promise<string>((resolve) => {
+      const p = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+      let s = ""; p.stdout.on("data", (b: Buffer) => (s += b.toString()));
+      p.on("close", () => resolve(s.trim())); p.on("error", () => resolve(""));
+    });
+    const pid = /^\d+$/.test(out) ? Number(out) : undefined;
+    return pid ? { pid, runCmd: `bun ${args.join(" ")}` } : { error: `WMI launch failed: ${out || "no output"}` };
+  }
+
+  // POSIX: sockets are close-on-exec, so a detached spawn inherits nothing.
   const child = spawn(process.execPath, args, {
     cwd: opts.repoPath,
     detached: true,
-    stdio: ["ignore", out, out],
-    windowsHide: true,
+    stdio: "ignore",
     env: { ...process.env, PORT: String(opts.port), NODE_ENV: "production" },
   });
   child.unref();
@@ -101,12 +145,14 @@ export async function restartLocalDeploy(recordId: string): Promise<{ ok: boolea
   if (!rec) return { ok: false, error: "deployment not found" };
   if (rec.target !== "local") return { ok: false, error: "only local deploys can be restarted here" };
 
-  // Recover the app's repo path from its artifacts.
-  const art =
-    (await db.artifact.findFirst({ where: { taskId: rec.taskId ?? undefined, type: "DEPLOYMENT" }, orderBy: { createdAt: "desc" }, select: { path: true } }).catch(() => null)) ??
-    (await db.artifact.findFirst({ where: { taskId: rec.taskId ?? undefined, type: "REPOSITORY" }, orderBy: { createdAt: "desc" }, select: { path: true } }).catch(() => null));
-  const repoPath = art?.path;
-  if (!repoPath) return { ok: false, error: "repo path not recoverable from artifacts" };
+  // The record stores its repoPath directly (new column); artifacts are only a
+  // fallback for legacy rows created before the column existed.
+  const art = rec.repoPath
+    ? null
+    : (await db.artifact.findFirst({ where: { taskId: rec.taskId ?? undefined, type: "DEPLOYMENT" }, orderBy: { createdAt: "desc" }, select: { path: true } }).catch(() => null)) ??
+      (await db.artifact.findFirst({ where: { taskId: rec.taskId ?? undefined, type: "REPOSITORY" }, orderBy: { createdAt: "desc" }, select: { path: true } }).catch(() => null));
+  const repoPath = rec.repoPath ?? art?.path;
+  if (!repoPath) return { ok: false, error: "repo path not recorded and not recoverable from artifacts" };
 
   // If it's already serving, nothing to do.
   const recPort = rec.url ? Number(new URL(rec.url).port) || 0 : 0;
@@ -119,9 +165,8 @@ export async function restartLocalDeploy(recordId: string): Promise<{ ok: boolea
   const started = await startLocalDetached({ repoPath, port, logPath: path.join(repoPath, `deploy-${rec.id}.log`) });
   if ("error" in started) return { ok: false, error: started.error };
 
-  await new Promise((r) => setTimeout(r, 3000));
   const url = `http://localhost:${port}`;
-  const healthOk = await fetch(url, { signal: AbortSignal.timeout(2000) }).then(() => true).catch(() => false);
+  const healthOk = await waitForHttp(url, 15_000);
   await db.deploymentRecord.update({ where: { id: rec.id }, data: { url, status: healthOk ? "DEPLOYED" : "UNHEALTHY", health: healthOk ? "HEALTHY" : "NOT_RUNNING", log: `restarted (pid ${started.pid ?? "?"}) → ${healthOk ? "healthy" : "no response"}` } }).catch(() => {});
   await emit({ agent: "DEPLOYMENT", action: "RESTART", detail: `restarted local deploy ${rec.id} → ${url} (${healthOk ? "healthy" : "no response"})`, level: healthOk ? "SUCCESS" : "WARNING", category: "DEPLOY" }).catch(() => {});
   return healthOk ? { ok: true, url } : { ok: false, error: `restarted but no response at ${url}` };

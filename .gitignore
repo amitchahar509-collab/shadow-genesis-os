@@ -65,3 +65,15 @@ db/ci*.db
 
 # Operator app config (secrets set via the Settings UI — never commit)
 .genesis-config.json
+
+genesis-crash.log
+stress.log
+gpid.txt
+rb.log
+rbe.log
+b1.log
+be1.log
+b2.log
+be2.log
+b.log
+be.log

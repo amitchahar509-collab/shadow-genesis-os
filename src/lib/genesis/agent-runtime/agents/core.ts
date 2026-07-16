@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { db } from "@/lib/db";
 import { BaseAgent, type AgentRunContext, type AgentRunInput } from "../base-agent";
 import { callLlm, parseJsonResponse } from "../types";
-import { startLocalDetached, findFreePort } from "../deployment/local-runtime";
+import { startLocalDetached, findFreePort, waitForHttp } from "../deployment/local-runtime";
 
 // ============ CEO ============
 export class CeoAgent extends BaseAgent {
@@ -350,7 +350,10 @@ export class QualityAgent extends BaseAgent {
     // Generate missing tests
     const generatedTests: string[] = [];
     for (const src of sourceFiles.slice(0, 8)) {
-      const rel = path.relative(repoPath, src);
+      // path.relative returns OS separators ("src\core.js" on Windows). Every
+      // rule below is written against POSIX paths, and a stray backslash also
+      // becomes a string escape once emitted into an import — normalise first.
+      const rel = path.relative(repoPath, src).split(path.sep).join("/");
       const testRel = rel.replace(/^(src|lib)\//, "tests/").replace(/\.(ts|js|py)$/, ".test.$1");
       const testPath = path.join(repoPath, testRel);
       if (await pathExists(testPath)) continue;
@@ -363,13 +366,22 @@ export class QualityAgent extends BaseAgent {
     const testResult = await ctx.tool("terminal", "exec", { command: `cd "${repoPath}" && (bun test 2>&1 || npm test 2>&1 || python -m pytest -q 2>&1 || true)`, timeoutMs: 120_000 });
     const m = testResult.raw?.match(/(\d+)\s+pass/i); const f = testResult.raw?.match(/(\d+)\s+fail/i);
     const testsPassed = m ? parseInt(m[1], 10) : 0; const testsFailed = f ? parseInt(f[1], 10) : 0;
-    await db.testRun.create({ data: { executionId: ctx.executionId, taskId: input.taskId ?? null, suite: "quality-tests", passed: testsPassed, failed: testsFailed, skipped: 0, durationMs: 0, status: testResult.ok ? "PASSED" : "FAILED", output: (testResult.raw ?? "").slice(-4000) } });
+    // The runner chain ends in `|| true`, so testResult.ok is ALWAYS true and is
+    // worthless as a pass/fail signal — using it recorded failing suites as
+    // "PASSED" and reported "Quality OK" over real failures. Truth comes from
+    // the parsed counts only.
+    const testsOk = testsFailed === 0;
+    await db.testRun.create({ data: { executionId: ctx.executionId, taskId: input.taskId ?? null, suite: "quality-tests", passed: testsPassed, failed: testsFailed, skipped: 0, durationMs: 0, status: testsOk ? "PASSED" : "FAILED", output: (testResult.raw ?? "").slice(-4000) } });
     const reportPath = path.join(ctx.sandboxRoot, "quality-report.md");
     await fs.writeFile(reportPath, `# Quality Report\n\n**Sources:** ${sourceFiles.length}\n**Tests generated:** ${generatedTests.length}\n**Security findings:** ${findings.length} (${criticalCount} critical)\n**Tests:** ${testsPassed} pass / ${testsFailed} fail\n\n## Findings\n${findings.map((f) => `- [${f.severity}] ${f.file}:${f.line} — ${f.rule}`).join("\n") || "✅ none"}\n`, "utf8");
     await ctx.recordMemory({ type: "PROCEDURAL", title: `Quality: ${testsPassed}/${testsPassed + testsFailed} tests, ${findings.length} findings`, content: "", tags: ["quality", "scan", criticalCount > 0 ? "critical" : "ok"], importance: criticalCount > 0 ? 9 : 5 });
     const reportStat = await fs.stat(reportPath);
-    const ok = testResult.ok && criticalCount === 0;
-    return { summary: ok ? `Quality OK: ${testsPassed} tests, 0 critical findings.` : `Quality issues: ${testsFailed} failures, ${criticalCount} critical.`, artifacts: [{ type: "FILE", path: reportPath, description: "Quality report", size: reportStat.size }], output: { repoPath, sourcesScanned: sourceFiles.length, testsGenerated: generatedTests.length, securityFindings: findings, testsPassed, testsFailed, ok } };
+    const ok = testsOk && criticalCount === 0;
+    // A quality gate that passes broken code is not a gate. Fail the task so the
+    // dependent DEPLOYMENT is blocked and the mission reports the truth instead
+    // of shipping a red build under a green "COMPLETE".
+    if (!ok) throw new Error(`quality gate failed: ${testsFailed} test failure(s), ${criticalCount} critical finding(s) — see ${path.basename(reportPath)}`);
+    return { summary: `Quality OK: ${testsPassed} tests, 0 critical findings.`, artifacts: [{ type: "FILE", path: reportPath, description: "Quality report", size: reportStat.size }], output: { repoPath, sourcesScanned: sourceFiles.length, testsGenerated: generatedTests.length, securityFindings: findings, testsPassed, testsFailed, ok } };
   }
 }
 
@@ -392,7 +404,7 @@ export class DeploymentAgent extends BaseAgent {
       await ctx.emit({ action: "BLOCK", detail: `blocked by ${blockers.length} critical security findings`, level: "ERROR", category: "SECURITY" });
       return { summary: `Deployment blocked by ${blockers.length} critical security findings`, artifacts: [], output: { ok: false, blocked: true, blockers: blockers.length } };
     }
-    const record = await db.deploymentRecord.create({ data: { executionId: ctx.executionId, taskId: input.taskId ?? null, projectId: input.projectId ?? null, target, buildCmd: "auto-detect", envValidation: "{}", status: "BUILDING", log: "" } });
+    const record = await db.deploymentRecord.create({ data: { executionId: ctx.executionId, taskId: input.taskId ?? null, projectId: input.projectId ?? null, target, buildCmd: "auto-detect", envValidation: "{}", status: "BUILDING", log: "", repoPath } });
     // Detect build system
     const pkgExists = await pathExists(path.join(repoPath, "package.json"));
     const buildCmd = pkgExists ? "cd ${repoPath} && (bun run build 2>&1 || npm run build 2>&1 || true)" : "";
@@ -419,9 +431,10 @@ export class DeploymentAgent extends BaseAgent {
     let url: string | null = null;
     if (target === "local") {
       if (pkgExists) {
-        // Launch DETACHED so the app outlives a Genesis restart (own process
-        // group, no inherited console, unref'd). Pick a free port so a deploy
-        // that survived a previous restart doesn't collide with this one.
+        // Launch OUTSIDE Genesis's handle scope (WMI-parented on Windows) so the
+        // app never inherits Genesis's listening socket — a direct child pins
+        // Genesis's port and the next Genesis start dies with EADDRINUSE. Pick a
+        // free port so a deploy that survived a previous restart doesn't collide.
         const livePort = await findFreePort(port);
         const started = await startLocalDetached({ repoPath, port: livePort, logPath: path.join(repoPath, `deploy-${record.id}.log`) });
         if ("error" in started) {
@@ -429,15 +442,14 @@ export class DeploymentAgent extends BaseAgent {
           throw new Error(`deployment failed: ${started.error}`);
         }
         url = `http://localhost:${livePort}`;
-        // Health check
-        await new Promise((r) => setTimeout(r, 3000));
+        // Health check: poll — the WMI launch chain (powershell → cmd → bun)
+        // takes a few seconds; a fixed short wait produced false UNHEALTHY.
         // Any HTTP response means the server is listening — a 404 at "/" is
         // still a live server (the scaffolded API only serves /items).
-        const health = await fetch(`${url}`, { signal: AbortSignal.timeout(2000) }).catch(() => null);
-        const healthOk = health !== null;
-        await db.deploymentRecord.update({ where: { id: record.id }, data: { status: healthOk ? "DEPLOYED" : "UNHEALTHY", url, health: healthOk ? "HEALTHY" : "UNHEALTHY", log: `Health: ${healthOk ? "ok" : "failed"}` } });
+        const healthOk = await waitForHttp(url, 15_000);
+        await db.deploymentRecord.update({ where: { id: record.id }, data: { status: healthOk ? "DEPLOYED" : "UNHEALTHY", url, health: healthOk ? "HEALTHY" : "UNHEALTHY", log: `Health: ${healthOk ? "ok" : "failed"} (pid ${started.pid ?? "?"})` } });
         await ctx.emit({ action: "DEPLOY", detail: `local → ${url} (${healthOk ? "healthy" : "unhealthy"})`, level: healthOk ? "SUCCESS" : "ERROR", category: "DEPLOY" });
-        if (!healthOk) throw new Error(`deployment unhealthy: server at ${url} did not respond within 5s (see deploy-${record.id}.log in repo)`);
+        if (!healthOk) throw new Error(`deployment unhealthy: server at ${url} did not respond within 15s (see deploy-${record.id}.log in repo)`);
         return { summary: `Deployed to ${target}: ${url} (healthy)`, artifacts: [{ type: "DEPLOYMENT", path: repoPath, description: `Deployed app`, size: 0 }], output: { target, url, healthOk, recordId: record.id } };
       }
     }
@@ -499,7 +511,11 @@ async function discoverSources(repoPath: string): Promise<string[]> {
   return out;
 }
 
-function generateTest(relPath: string, content: string, ext: string): string | null {
+function generateTest(relPathRaw: string, content: string, ext: string): string | null {
+  // Defensive: callers may hand us an OS-separator path. A backslash here both
+  // defeats the POSIX rules below and turns into a string escape inside the
+  // emitted import ("src\core" → "srccore"), producing a test that cannot run.
+  const relPath = relPathRaw.split(/[\\/]/).join("/");
   if (ext === ".py") {
     const mod = relPath.replace(/\//g, ".").replace(/\.py$/, "");
     const funcs = Array.from(content.matchAll(/^def\s+(\w+)/gm)).map((m) => m[1]).filter((n) => !n.startsWith("_"));

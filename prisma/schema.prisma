@@ -248,6 +248,7 @@ model DeploymentRecord {
   healthCheckedAt DateTime?
   rolledBackFrom  String? // deploymentId this record superseded on rollback
   configPath    String? // generated deploy config (vercel.json / Dockerfile / render.yaml)
+  repoPath      String? // where the app's repo lives — lets restart/reconcile relaunch without artifact archaeology
 }
 
 // ============ AGENT COLLABORATION (V3 Phase 1) ============
