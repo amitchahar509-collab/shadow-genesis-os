@@ -69,21 +69,30 @@ export async function startLocalDetached(opts: { repoPath: string; port: number;
   return { pid: child.pid, runCmd: `bun ${args.join(" ")}` };
 }
 
-/** Boot-time reconciliation: reflect the REAL state of recorded local deploys so
- *  the UI shows what actually survived the restart. Never fabricates liveness. */
-export async function reconcileLocalDeploys(): Promise<{ checked: number; alive: number }> {
+/** Boot-time reconciliation: make every local deploy reachable whenever Genesis
+ *  is up. Health-check each recorded local deploy; if it survived, mark HEALTHY;
+ *  if it died (machine reboot, crash, blanket kill), REVIVE it from its repo so
+ *  the user's URL just works. Deduped by URL so historical rows that shared a
+ *  port don't spawn duplicates — only the newest record per URL is revived. */
+export async function reconcileLocalDeploys(): Promise<{ checked: number; alive: number; revived: number }> {
   const recs = await db.deploymentRecord
-    .findMany({ where: { target: "local", status: "DEPLOYED", url: { not: null } }, select: { id: true, url: true } })
+    .findMany({ where: { target: "local", status: "DEPLOYED", url: { not: null } }, orderBy: { createdAt: "desc" }, select: { id: true, url: true } })
     .catch(() => [] as { id: string; url: string | null }[]);
-  let alive = 0;
+  let alive = 0, revived = 0, checked = 0;
+  const seenUrl = new Set<string>();
   for (const r of recs) {
-    if (!r.url) continue;
+    if (!r.url || seenUrl.has(r.url)) continue; // newest record per URL only
+    seenUrl.add(r.url);
+    checked++;
     const ok = await fetch(r.url, { signal: AbortSignal.timeout(1500) }).then(() => true).catch(() => false);
-    if (ok) alive++;
-    await db.deploymentRecord.update({ where: { id: r.id }, data: { health: ok ? "HEALTHY" : "NOT_RUNNING" } }).catch(() => {});
+    if (ok) { alive++; await db.deploymentRecord.update({ where: { id: r.id }, data: { health: "HEALTHY" } }).catch(() => {}); continue; }
+    // Dead — bring it back so the URL is reachable now that Genesis is running.
+    const res = await restartLocalDeploy(r.id).catch(() => ({ ok: false as const }));
+    if (res.ok) { alive++; revived++; }
+    else await db.deploymentRecord.update({ where: { id: r.id }, data: { health: "NOT_RUNNING" } }).catch(() => {});
   }
-  if (recs.length) await emit({ agent: "DEPLOYMENT", action: "RECONCILE", detail: `local deploys: ${alive}/${recs.length} still serving after restart`, level: "INFO", category: "DEPLOY" }).catch(() => {});
-  return { checked: recs.length, alive };
+  if (checked) await emit({ agent: "DEPLOYMENT", action: "RECONCILE", detail: `local deploys: ${alive}/${checked} reachable (${revived} auto-revived)`, level: "INFO", category: "DEPLOY" }).catch(() => {});
+  return { checked, alive, revived };
 }
 
 /** Relaunch a stopped local deploy from its recorded repo (detached). */
