@@ -74,6 +74,10 @@ export async function deriveRunArgs(repoPath: string): Promise<string[] | null> 
  *  no reconciliation to revive anything. Let the shell own the redirection so we
  *  inherit nothing to the child. */
 export async function startLocalDetached(opts: { repoPath: string; port: number; logPath: string }): Promise<{ pid?: number; runCmd: string } | { error: string }> {
+  // Hard isolation: under the test suite, NEVER spawn a real process or bind a
+  // real port. tests/setup.ts sets this flag; combined with the isolated test DB
+  // and workspace, no test can touch a running application.
+  if (process.env.GENESIS_TEST_ISOLATION === "1") return { error: "local spawn disabled under test isolation" };
   const args = await deriveRunArgs(opts.repoPath);
   if (!args) return { error: "no start script in package.json" };
 

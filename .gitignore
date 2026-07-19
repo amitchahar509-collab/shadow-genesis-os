@@ -77,3 +77,6 @@ b2.log
 be2.log
 b.log
 be.log
+
+# Isolated unit/integration test environment (db + workspace + artifacts)
+.genesis-test-env/
