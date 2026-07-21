@@ -80,3 +80,8 @@ be.log
 
 # Isolated unit/integration test environment (db + workspace + artifacts)
 .genesis-test-env/
+
+# Runtime SQLite DB — created by prisma db push; never tracked
+db/custom.db
+db/*.db-journal
+db/*.db-wal
