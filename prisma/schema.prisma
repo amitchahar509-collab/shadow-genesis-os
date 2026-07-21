@@ -1438,3 +1438,21 @@ model LeadInteraction {
   @@index([leadId])
 }
 
+
+// ============ V11 — Requirements Engine (Phase 1) ============
+// A formal, goal-DERIVED requirements document produced by reasoning before any
+// code is written. Additive; does not touch the template pipeline.
+model RequirementSpec {
+  id           String   @id @default(cuid())
+  specId       String   @unique // REQ-000001
+  goal         String
+  mode         String   @default("HEURISTIC") // LLM | HEURISTIC (honest: how it was derived)
+  purpose      String   @default("")
+  doc          String   @default("{}") // full RequirementsDoc as JSON
+  entityCount  Int      @default(0)
+  featureCount Int      @default(0)
+  projectId    String?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
