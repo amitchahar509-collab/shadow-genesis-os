@@ -2,9 +2,17 @@
  *  Deterministic + offline: the LLM is injected via the router's `_invoke` seam,
  *  so no real provider is called. Proves: full doc shape, goal-specific output,
  *  honest HEURISTIC fallback, and persistence. */
-import { test, expect } from "bun:test";
+import { test, expect, beforeAll, afterAll } from "bun:test";
 import { deriveRequirements, heuristicRequirements, runRequirements, type RequirementsDoc } from "@/lib/genesis/agent-runtime/requirements";
 import { db } from "@/lib/db";
+
+// The injected `_invoke` seam is only reached when the router has at least one
+// provider in the chain (an empty chain returns NO_PROVIDER before invoking).
+// Set a DUMMY key so a provider exists — the seam handles the "call", so no real
+// network request is ever made. Restore afterward to avoid cross-file leakage.
+const savedGemini = process.env.GEMINI_API_KEY;
+beforeAll(() => { process.env.GEMINI_API_KEY = "test-only-seamed-no-real-call"; });
+afterAll(() => { if (savedGemini === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = savedGemini; });
 
 // A fake model that returns a domain-specific doc keyed off the goal — mimics a
 // real LLM reasoning differently per goal.
