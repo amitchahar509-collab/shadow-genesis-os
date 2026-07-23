@@ -1456,3 +1456,21 @@ model RequirementSpec {
 
   @@index([createdAt])
 }
+
+// ============ V11 — Architecture Engine (Phase 2) ============
+// A reasoned architecture DERIVED from a RequirementSpec: each component is a
+// justified choice (or "none"), plus project structure + modules. Additive.
+model ArchitectureSpec {
+  id          String   @id @default(cuid())
+  archId      String   @unique // ARCH-000001
+  specId      String? // linked RequirementSpec
+  goal        String
+  mode        String   @default("HEURISTIC") // LLM | HEURISTIC
+  summary     String   @default("")
+  doc         String   @default("{}") // full ArchitectureDoc as JSON
+  moduleCount Int      @default(0)
+  projectId   String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
